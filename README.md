@@ -143,6 +143,21 @@ adding time would take.
 The bundled inputs describe a **synthetic demonstration field**. They are illustrative
 values in a plausible range, not an assessment of any real asset.
 
+## Deploying
+
+The dashboard deploys to Vercel from `apps/web`. Configuration lives in
+[`apps/web/vercel.json`](apps/web/vercel.json); the only setting that cannot be
+expressed there is the root directory, which is set in the Vercel project:
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | `apps/web` |
+| Include files outside root directory | enabled — the build needs `packages/core` and the root lockfile |
+| Framework / Build / Install / Output overrides | none — `vercel.json` supplies them |
+
+`packages/core` needs no build step of its own: it ships TypeScript source and
+`next.config.mjs` transpiles it, so `next build` is the whole pipeline.
+
 ## Licence
 
 MIT — see [LICENSE](LICENSE).

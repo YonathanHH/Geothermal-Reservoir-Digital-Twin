@@ -10,3 +10,6 @@ local/
 *.xlsm
 *.xlsb
 *.xls
+
+# Vercel CLI project link
+.vercel/
