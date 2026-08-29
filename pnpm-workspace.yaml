@@ -3,6 +3,8 @@ packages:
   - 'apps/*'
 
 # esbuild (pulled in by vitest and tsx) runs a postinstall to fetch its platform
-# binary. pnpm 11 fails the install unless build scripts are explicitly reviewed.
-onlyBuiltDependencies:
-  - esbuild
+# binary. pnpm 11 fails the install with ERR_PNPM_IGNORED_BUILDS unless the
+# build script is explicitly approved here. `onlyBuiltDependencies` is the
+# pnpm 10 spelling and is ignored by pnpm 11.
+allowBuilds:
+  esbuild: true
