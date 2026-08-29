@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "flate": "^0.8.2",
+    "fflate": "^0.8.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
@@ -22,11 +22,6 @@
   "packageManager": "pnpm@11.21.0",
   "engines": {
     "node": ">=20"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
   },
   "license": "MIT"
 }
