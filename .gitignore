@@ -1,0 +1,12 @@
+node_modules/
+.next/
+dist/
+*.tsbuildinfo
+.DS_Store
+.env*.local
+
+# Material derived from the confidential source workbook. See local/README.md.
+local/
+*.xlsm
+*.xlsb
+*.xls
