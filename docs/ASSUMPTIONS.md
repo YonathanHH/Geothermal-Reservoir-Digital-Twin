@@ -288,3 +288,36 @@ overconfidence; it cannot rule out underconfidence.
 **"Digital twin" now means prototype.** The dashboard tab earns the name only
 in the synthetic sense: a simulated field, simulated meters, and estimation
 closing the loop. No real asset, no real data, no real-time operation.
+
+## 14. The spatial layer (Phase 3)
+
+Section 14 of `MODEL_SPEC.md` disaggregates the tank; it does not simulate
+flow. New assumptions:
+
+**Cones, not flow.** Drawdown mounds are steady exponential influence
+functions superposed linearly — no transient diffusion, no heterogeneity, no
+two-phase effects, no buoyancy, no thermal conduction. The coefficients
+(C_q, lengths, cooling fraction) are effective illustration numbers, not rock
+properties; defaults are sized so a typical well draws of order 1 bar against
+bulk pressures of tens of bar.
+
+**One geometry, fixed for the run.** Well positions, shares and the boundary
+never move; there is no drilling, no workovers, no shut-in logic beyond
+zero-share observation wells. Peripheral injection is a layout choice
+documented as standard practice, not an optimized pattern.
+
+**Well temperatures are stylised.** Injectors report injection temperature and
+producers a bounded pull toward it; there is no wellbore heat loss, no
+mixing calculation, and observation wells read bulk exactly. Do not read
+these as flowing-temperature predictions.
+
+**Bulk meters assimilate; wellhead meters watch.** The EnKF still consumes
+only plant bulk T/p. Well observations never enter the filter in this phase,
+so the map's estimated wells show the *consequence* of assimilation, not a
+second assimilation. Wiring well-level data into the update is explicit
+future work — the per-well streams and the `TelemetryPoint`-shaped records
+are the boundary it will use.
+
+**The grid is a rendering aid.** `fieldGrid` evaluates the same cones for
+colour, not a solved field. Grid–well agreement holds to the smoothness
+bound the tests assert; nothing finer should be claimed.

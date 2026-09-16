@@ -404,3 +404,49 @@ the numbers that audit whether the forecast uncertainty means what it claims.
 Innovations mostly inside ±2σ indicate honest spread; persistent excursions
 would mean overconfidence. The result also carries all three layer versions
 (model, dynamics, assimilation) as provenance.
+
+## 14. Spatial field layer (Phase 3)
+
+`packages/core/src/spatial/`. A deterministic disaggregation of the lumped
+tank onto wells and a plan-view grid, versioned as `SPATIAL_VERSION`
+(`0.1.0`). No dynamics, no feedback: the tank stays the sole mass/energy
+engine, and every spatial value is a pure function of bulk state plus rates.
+
+### 14.1 Layout
+
+`defaultFieldLayout(areaKm2, seed, counts, depthM)`: the footprint is an
+equal-area 5:4 ellipse from the static area A; producers on an inner ring
+(0.45), peripheral injectors on an outer ring (0.80, standard practice to
+delay breakthrough), one central observation well. Angular slots are even with
+a seeded inward-only jitter (≤ 8%, never escaping the boundary); ids
+(`P-01…`, `I-01…`, `O-01…`) are fixed by kind and slot. Rate shares are equal
+within kind and sum to 1; well depth is the static average depth, never
+invented from plan geometry.
+
+### 14.2 Influence mapping
+
+With bulk (T, p), per-well signed rates q (withdrawal-positive for producers,
+injection-positive for injectors), cone length L and thermal length L_T as
+fractions of the footprint equivalent radius:
+
+```
+p_i = p_tank − C_q·[q_i + Σ_{j≠i} ±q_j·e^(−d_ij/L)]     (+ injectors, − producers)
+T_i = T_tank − (T_tank − T_inj)·c·min(1, Σ_k f_k·e^(−d_ik/L_T))   (producers)
+T_i = T_inj  (injectors) · T_i = T_tank  (observation wells)
+```
+
+Defaults (`DEFAULT_SPATIAL_PARAMS`): C_q = 0.04 bar/(kg/s), L = 0.6·R_eq,
+c = 0.15, L_T = 0.4·R_eq. The gridded field (`fieldGrid`, ≤ 101² cells)
+evaluates the same cones at cell centres, so grid and wells agree up to the
+smoothness bound. Pressures below 0.5 bar clamp with a `pressureLimited`
+flag — recorded, never silent.
+
+### 14.3 Wellhead surveillance and assimilation link
+
+`observeWells` meters per-well T/p with the telemetry sensor conventions
+(Gaussian noise, bias, dropouts, plausibility refusal) on fully independent
+per-well/channel/step streams (`seed:well:{id}:{channel}:{step}`). Plant bulk
+meters keep feeding the existing EnKF untouched; wellhead meters are the
+surveillance layer the map displays. The twin link is disaggregation:
+`conditionsSeries` maps truth and posterior-mean trajectories onto wells, so
+the map renders estimated spatial states from the assimilation posterior.

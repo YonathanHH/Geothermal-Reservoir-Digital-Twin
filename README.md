@@ -82,7 +82,7 @@ scales on one frame invite the reader to compare series that are not comparable.
 ## Verification
 
 ```bash
-pnpm test      # 147 unit tests (74 static + 25 dynamics + 21 telemetry + 27 assimilation)
+pnpm test      # 170 unit tests (74 static + 25 dynamics + 21 telemetry + 27 assimilation + 23 spatial)
 pnpm verify    # human-readable verification report (static engine)
 ```
 

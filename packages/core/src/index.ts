@@ -19,3 +19,4 @@ export * as steam from './steam/index.js';
 export * as dynamics from './dynamics/index.js';
 export * as telemetry from './telemetry/index.js';
 export * as assimilation from './assimilation/index.js';
+export * as spatial from './spatial/index.js';

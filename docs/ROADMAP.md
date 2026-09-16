@@ -19,6 +19,7 @@
 | ML surrogate | Later |
 | Data assimilation | Phase 2 done (EnKF prototype on synthetic truth) |
 | Twin hardening + validation | Phase 2.5 done (regimes, innovations, consistency guards) |
+| Spatial digital twin | Phase 3 done (wells, influence map, assimilation-linked views) |
 
 ---
 
@@ -109,6 +110,14 @@ twin experiment (biased prior + free-run control) showing ~95%+ error
 reduction on synthetic truth. State estimation only — no parameter
 calibration, no real data. Remaining: parameter estimation, model-error
 treatment, real telemetry.
+
+Phase 3 (done, `packages/core/src/spatial/`, `SPATIAL_VERSION 0.1.0`):
+deterministic disaggregation of tank bulk state onto a synthetic well field
+(inner-ring producers, peripheral injectors, central observation well) via
+superposed influence cones, plus per-well surveillance with isolated streams.
+The "Field map" dashboard tab renders truth vs posterior spatial states from
+twin trajectories over a time slider. No flow simulation, no well-level
+assimilation yet — those stay below.
 
 **This is the phase that would make "digital twin" an honest description.** Until dynamic
 observations are actually assimilated, the term stays out of the documentation.

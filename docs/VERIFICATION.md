@@ -139,7 +139,7 @@ pinned to the maximum.
 
 ```bash
 pnpm install
-pnpm test      # 147 unit tests (74 static + 25 dynamics + 21 telemetry + 27 assimilation)
+pnpm test      # 170 unit tests (74 static + 25 dynamics + 21 telemetry + 27 assimilation + 23 spatial)
 pnpm verify    # the report above (static engine only)
 pnpm run dev   # dashboard at localhost:3000
 ```
@@ -196,6 +196,7 @@ calibrated statistics elsewhere:
 | Dynamic tank conserves mass/energy, converges in dt, reproduces exactly | Internal consistency (above) | Passes |
 | Telemetry reproduces truth at zero noise, isolates streams, calibrates to σ | Exact + statistical (above) | Passes |
 | EnKF corrects a biased prior vs a free-run control, reproduces exactly | Experimental, 3 seeds (above) | Passes |
+| Spatial wells stay in-bounds, match the grid, observe reproducibly | Exact + bounded (below) | Passes |
 
 **What this does not establish:** that the volumetric method, the
 reduced-order tank, or the synthetic telemetry resemble any real reservoir or
@@ -230,3 +231,24 @@ exact, statistics where statistical, and a head-to-head experiment overall:
 - **Innovations**: every used channel records a finite innovation with a
   positive expected std; > 80% of temperature innovations sit inside ±2σ;
   the default run skips no analyses and falls back at most twice.
+
+## Spatial field (Phase 3, `packages/core/test/spatial.test.ts`)
+
+The layout is synthetic geometry, so it is held to exactness; the influence
+mapping to bounded consistency:
+
+- **Layout**: every well inside the equal-area ellipse (π·Rx·Ry = A asserted);
+  shares sum to 1 per kind; ids stable across seeds while positions jitter;
+  footprint scales with area; bad geometry throws.
+- **Influence**: zero rates reproduce bulk exactly; producers draw down
+  monotonically in rate; injectors-only fields mound above bulk; producer
+  cooling stays between injection and bulk temperatures and decays with
+  injector distance; extreme drawdown clamps at 0.5 bar with a flag, never
+  silently.
+- **Grid–well agreement**: nearest inside-cell matches each well within the
+  Lipschitz bound (C_q·Q/L × distance); outside cells are flagged NaN.
+- **Surveillance**: perfect sensors reproduce truth; per-(well, channel, step)
+  streams reproduce exactly, isolate wells, and make step selection
+  order-independent; gaps carry flags; inputs never mutated.
+- **Bridge**: `conditionsSeries` maps trajectories step-for-step and
+  time-stamps through, matching single-step calls exactly.

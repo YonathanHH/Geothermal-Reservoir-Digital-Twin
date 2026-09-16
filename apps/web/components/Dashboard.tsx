@@ -22,6 +22,7 @@ import {
 import { CalculationLadder } from './CalculationLadder';
 import { DynamicModelView } from './DynamicModelView';
 import { ExceedanceChart } from './ExceedanceChart';
+import { FieldMapView } from './FieldMapView';
 import { HistogramChart } from './HistogramChart';
 import { ParameterTable } from './ParameterTable';
 import { RunControls, ThemeToggle } from './RunControls';
@@ -31,7 +32,7 @@ import { TelemetryView } from './TelemetryView';
 import { TornadoChart } from './TornadoChart';
 import { TwinView } from './TwinView';
 
-const TABS = ['Overview', 'Monte Carlo', 'Inputs & sensitivity', 'Scenario lab', 'Dynamic model', 'Field telemetry', 'Digital twin'] as const;
+const TABS = ['Overview', 'Monte Carlo', 'Inputs & sensitivity', 'Scenario lab', 'Dynamic model', 'Field telemetry', 'Digital twin', 'Field map'] as const;
 type Tab = (typeof TABS)[number];
 
 export function Dashboard() {
@@ -245,6 +246,10 @@ export function Dashboard() {
 
           {tab === 'Digital twin' ? (
             <TwinView parameters={deferred.parameters} seed={settings.seed} />
+          ) : null}
+
+          {tab === 'Field map' ? (
+            <FieldMapView parameters={deferred.parameters} seed={settings.seed} />
           ) : null}
         </main>
       )}
