@@ -17,3 +17,4 @@ export * from './sensitivity.js';
 export * from './scenarios.js';
 export * as steam from './steam/index.js';
 export * as dynamics from './dynamics/index.js';
+export * as telemetry from './telemetry/index.js';

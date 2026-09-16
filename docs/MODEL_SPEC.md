@@ -288,3 +288,61 @@ with the last completed step and reason. Tanks that deplete their mass or
 pressure storage throw inside `step` and are recorded rather than producing
 `NaN` — e.g. a small tank cannot sustain 80 kg/s for 30 years, and the model
 refuses rather than misleads.
+
+## 12. Synthetic field telemetry (Phase 1.5)
+
+`packages/core/src/telemetry/`. A pure observation layer over recorded dynamic
+trajectories: hidden TRUE state → sensor model → noise, bias and sampling →
+observation. No reservoir equations, no feedback into the dynamics, versioned
+separately as `TELEMETRY_VERSION` (`0.1.0`). All values are synthetic.
+
+### 12.1 Channels and field layout
+
+Five channels in stable order, grouped on a synthetic field with one production
+well (PW-01) and one plant:
+
+| Channel | Source | Unit | Default σ | Default dropout |
+|---|---|---|---:|---:|
+| temperatureC | PW-01 | °C | 1.5 | 0.01 |
+| pressureBar | PW-01 | bar | 0.8 | 0.01 |
+| productionKgS | PW-01 | kg/s | 1.0 | 0.005 |
+| injectionKgS | plant | kg/s | 1.0 | 0.005 |
+| generationMWe | plant | MWe | 0.15 | 0.005 |
+
+Bias defaults to 0 everywhere. A lumped tank cannot honestly feed distinct
+wells, so per-well variation is not modelled.
+
+### 12.2 Truth mapping
+
+```
+T_obs ← tank temperatureC            (reservoir conditions observed directly)
+p_obs ← tank pressureBar             (no wellbore hydraulics resolved)
+q_prod ← controls in effect at that time   (meters observe the setpoint + noise)
+q_inj  ← controls in effect at that time
+P_obs ← state capacityMweInstant     (plant meter)
+```
+
+### 12.3 Observation model
+
+Per channel per sampled step, from that channel's isolated sensor stream
+(`mulberry32(seedFromString(`${seed}:obs:${channel}:${trajectoryIndex}`))`):
+
+```
+u ~ Uniform; if u < dropoutRate → { quality: 'missing', reason: 'dropout' }
+z = true + bias + σ · BoxMuller(rng)     (exactly two uniform draws)
+if z outside plausibility bounds → { quality: 'rejected', reason: 'out-of-range' }
+else → { quality: 'ok', observed: z, residual: z − true }
+```
+
+Plausibility bounds: T in (0, 350) °C (IF97 liquid domain), pressure > 0,
+rates and generation ≥ 0 — a reading of exactly 0 (idle rate) is legitimate.
+Zero-noise configuration (σ = bias = dropout = 0) reproduces truth exactly.
+
+### 12.4 Cadence and records
+
+V1 cadence is monthly (`cadenceSteps: 1`): states at indices 0, 1, 2, … are
+observed. Every `TelemetryPoint` carries continuous `timeYears` plus the step
+index, channel, source, unit, true and observed values, residual, quality and
+reason — the flat handoff record a Phase-2 estimator will consume via
+`observeTrajectory` / `observeEnsemble` / `summarizeTelemetry` (per-channel
+RMSE and mean residual over usable points).

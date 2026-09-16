@@ -162,9 +162,11 @@ export function DynamicModelView({
           simulator</strong> (dynamics version {dynamics.DYNAMICS_VERSION}).
         </p>
         <p className="note">
-          Instantaneous generation answers “what does this rate deliver at this state”;
-          the static capacity answers “what average does the whole stock sustain over the
-          project life”. The two numbers are not directly comparable.
+          Instantaneous generation is the power this operating rate delivers right now,
+          at the current reservoir state. The static Overview estimate is different: it
+          averages the whole recoverable heat stock over the project lifetime. A falling
+          instantaneous curve alongside a healthy static average means the current rate
+          is drawing the tank down — not that the resource estimate was wrong.
         </p>
       </div>
 
@@ -241,7 +243,9 @@ export function DynamicModelView({
         </div>
         <p className="note">
           Monthly timestep (fixed). The ensemble is capped at 200 trajectories to keep the
-          browser responsive; every trajectory integrates 360 core steps.
+          browser responsive; every trajectory integrates 360 core steps. Run metadata:
+          seed {seed} · dynamics version {dynamics.DYNAMICS_VERSION} — the same seed
+          reproduces this run exactly.
         </p>
       </div>
 
@@ -263,7 +267,7 @@ export function DynamicModelView({
               lines={[{ label: 'Most-likely trajectory', points: seriesOf(shown, (s) => s.temperatureC) }]}
               band={bandOf('Temperature', (s) => s.temperatureC)}
               digits={1}
-              caption="Bulk tank temperature. Injection at 60 °C cools the block; the band spans ensemble geology."
+              caption="Bulk tank temperature. Cooler injected fluid chills the block while production draws heat out; the band spans ensemble geology."
             />
             <TimeSeriesChart
               title="Reservoir pressure"
@@ -271,7 +275,7 @@ export function DynamicModelView({
               lines={[{ label: 'Most-likely trajectory', points: seriesOf(shown, (s) => s.pressureBar) }]}
               band={bandOf('Pressure', (s) => s.pressureBar)}
               digits={1}
-              caption="Linearised storage response to net mass withdrawal. Exhausted tanks are rejected, not plotted."
+              caption="Every month the field produces more fluid than it injects back, so fluid stored underground falls and pressure falls with it. One effective storage number converts that mass imbalance into a pressure drop — it stands in for rock and fluid compressibility, not a measured property. Exhausted tanks are rejected, not plotted."
             />
           </div>
           <div className="grid-2">
@@ -280,22 +284,31 @@ export function DynamicModelView({
               yLabel="Capacity (MWe)"
               lines={[{ label: 'Most-likely trajectory', points: seriesOf(shown, (s) => s.capacityMweInstant) }]}
               band={bandOf('Generation', (s) => s.capacityMweInstant)}
-              caption="Power the current rate sustains at the current state — not the static lifetime average."
+              caption="Power the current rate sustains at the current state. Unlike the static lifetime average on the Overview tab, this moves with the reservoir — it falls as the tank cools and depressurises."
             />
             <TimeSeriesChart
-              title="Operating rates and cumulative generation"
-              yLabel="Rate (kg/s) · energy (GWh)"
+              title="Operating profile"
+              yLabel="Rate (kg/s)"
               lines={[
-                { label: 'Production (kg/s)', points: seriesOf(shown, () => model.schedule.controls.productionKgS) },
-                { label: 'Injection (kg/s)', points: seriesOf(shown, () => model.schedule.controls.injectionKgS) },
-                {
-                  label: 'Cumulative generation (GWh)',
-                  points: shown.map((s, i) => ({ t: s.timeYears, value: cumulativeGwh[i] ?? 0 })),
-                },
+                { label: 'Production', points: seriesOf(shown, () => model.schedule.controls.productionKgS) },
+                { label: 'Injection', points: seriesOf(shown, () => model.schedule.controls.injectionKgS) },
               ]}
-              caption="Prescribed flat rates plus the time-integral of instantaneous generation (display bookkeeping)."
+              digits={1}
+              caption="Prescribed constant operating rates. The gap between the two lines is the monthly mass imbalance driving the pressure decline above."
             />
           </div>
+          <TimeSeriesChart
+            title="Cumulative generation"
+            yLabel="Energy (GWh)"
+            lines={[
+              {
+                label: 'Most-likely trajectory',
+                points: shown.map((s, i) => ({ t: s.timeYears, value: cumulativeGwh[i] ?? 0 })),
+              },
+            ]}
+            digits={1}
+            caption="Time-integral of instantaneous generation along the most-likely trajectory (display bookkeeping, not a model output)."
+          />
 
           <div className="panel">
             <h2>Starting and ending state</h2>
@@ -340,7 +353,7 @@ export function DynamicModelView({
               {model.ensemble.rejected.length > 0
                 ? `, ${model.ensemble.rejected.length} rejected as physically exhausted`
                 : ', none rejected'}
-              . Bands are P90–P10 across surviving trajectories with the P50 spine dashed.
+              . Bands show the P10–P90 ensemble range across surviving trajectories with the P50 spine dashed.
             </p>
           ) : null}
 

@@ -45,7 +45,19 @@ export function ticks(domain: [number, number], count = 5): number[] {
   return out;
 }
 
-export const PLOT_MARGIN = { top: 12, right: 16, bottom: 40, left: 52 };
+/**
+ * Plot margins in viewBox units, shared by every SVG chart so all panels align.
+ *
+ * The left gutter reserves room for the widest tick labels (thousands with
+ * decimals) plus the rotated axis title with clearance on both sides — tick
+ * text ends at `left - 8` and the title is centred at `left - 62`, so nothing
+ * static ever flows past the viewBox edge onto neighbouring content. The
+ * bottom gutter holds tick labels (`plotBottom + 16`) and the axis title.
+ */
+export const PLOT_MARGIN = { top: 14, right: 18, bottom: 44, left: 76 };
+
+/** Horizontal centre of the rotated y-axis title: clear of ticks and edge. */
+const Y_TITLE_X = PLOT_MARGIN.left - 62;
 
 interface AxesProps {
   width: number;
@@ -138,7 +150,7 @@ export function Axes({
         {xLabel}
       </text>
       <text
-        transform={`translate(12 ${PLOT_MARGIN.top + (plotBottom - PLOT_MARGIN.top) / 2}) rotate(-90)`}
+        transform={`translate(${Y_TITLE_X} ${PLOT_MARGIN.top + (plotBottom - PLOT_MARGIN.top) / 2}) rotate(-90)`}
         textAnchor="middle"
         fill="var(--text-secondary)"
         fontSize={11}

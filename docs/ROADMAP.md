@@ -15,6 +15,7 @@
 | Sobol sensitivity indices | Next |
 | Export | Next |
 | Dynamic reduced-order model | Phase 1 done (tank + ensemble, no assimilation) |
+| Synthetic field telemetry | Phase 1.5 done (observation layer, no assimilation) |
 | ML surrogate | Later |
 | Data assimilation | Later |
 
@@ -78,6 +79,13 @@ tank mass/energy balance over 30 years with explicit pressure state, prescribed
 production/injection controls, static-model initialisation, and a seeded
 ensemble runner. No well models, no pressure-target control, no assimilation —
 those stay below.
+
+Phase 1.5 (done, `packages/core/src/telemetry/`, `TELEMETRY_VERSION 0.1.0`):
+synthetic observation layer over recorded trajectories — one production well
+plus plant, Gaussian meter noise on isolated per-channel streams, dropouts and
+refusals as explicit quality flags, monthly cadence, flat `TelemetryPoint`
+handoff records with truth, residual and units. No assimilation: the records
+are the boundary Phase 2 will consume.
 
 ### High-fidelity simulation and ML surrogate
 

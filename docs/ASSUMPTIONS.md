@@ -203,3 +203,47 @@ sustain a large rate for 30 years; the model says so loudly.
 "what does this rate deliver at this state", while the static chain answers
 "what average capacity does the whole stock sustain over the project life".
 Comparing the two numbers directly is a category error.
+
+## 12. The synthetic telemetry layer (Phase 1.5)
+
+Section 12 of `MODEL_SPEC.md` is a measurement model, not a reservoir model.
+It adds observation uncertainty, sampling behaviour and recording failures —
+nothing else. Every new assumption is listed here.
+
+**All telemetry is synthetic.** No reading in this system ever came from a real
+well, plant or meter. Sensor noise stands in for instrument precision (a meter
+never reads the dial exactly); it knows nothing about reservoir physics and
+must never be interpreted as process variability.
+
+**One production well and one plant.** PW-01 plus plant meters is the whole
+field. Distinct wells with distinct conditions would require a spatially
+resolved reservoir, which the lumped tank is not. Do not present multi-well
+behaviour from this system.
+
+**Sensors observe bulk tank conditions directly.** There are no wellbore
+hydraulics, no drawdown between sandface and wellhead, no heat loss up the
+well, and no spatial gradients. A reported temperature or pressure is the tank
+value plus noise — an optimistic view of observability, stated plainly.
+
+**Noise is absolute, Gaussian and unbiased by default.** No drift, no
+fouling, no correlated or common-mode failures, no heteroscedasticity. The
+sigmas are plausible meter accuracies, not calibrated error models. Bias is
+supported but defaults to zero.
+
+**Gaps are dropouts or refusals, and the reservoir keeps running.** A `missing`
+point is a scheduled reading that never arrived; a `rejected` point arrived
+outside physical plausibility and was refused rather than passed downstream.
+Neither affects the dynamics, which were recorded before observation. Charts
+break at gaps instead of interpolating across them.
+
+**Monthly cadence.** The V1 observation rhythm matches the monthly reservoir
+step. Weekly or daily sampling would need sub-step interpolation of the tank,
+which is not implemented; the record's continuous timestamps keep that door
+open without changing the schema.
+
+**What this prepares for.** The flat `TelemetryPoint` record (true value,
+observed value, residual, quality, reason, units) is the boundary a Phase-2
+state estimator will consume — at which point THESE synthetic readings can be
+swapped for real ones without rewriting the reservoir model. Until real
+observations are actually assimilated, "real-time digital twin" stays out of
+the documentation.

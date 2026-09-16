@@ -27,9 +27,10 @@ import { ParameterTable } from './ParameterTable';
 import { RunControls, ThemeToggle } from './RunControls';
 import { ScenarioLab } from './ScenarioLab';
 import { ExceedanceTable, PercentileTiles, SummaryTable } from './StatTiles';
+import { TelemetryView } from './TelemetryView';
 import { TornadoChart } from './TornadoChart';
 
-const TABS = ['Overview', 'Monte Carlo', 'Inputs & sensitivity', 'Scenario lab', 'Dynamic model'] as const;
+const TABS = ['Overview', 'Monte Carlo', 'Inputs & sensitivity', 'Scenario lab', 'Dynamic model', 'Field telemetry'] as const;
 type Tab = (typeof TABS)[number];
 
 export function Dashboard() {
@@ -235,6 +236,10 @@ export function Dashboard() {
 
           {tab === 'Dynamic model' ? (
             <DynamicModelView parameters={deferred.parameters} seed={settings.seed} />
+          ) : null}
+
+          {tab === 'Field telemetry' ? (
+            <TelemetryView parameters={deferred.parameters} seed={settings.seed} />
           ) : null}
         </main>
       )}

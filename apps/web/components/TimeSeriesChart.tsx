@@ -10,8 +10,8 @@ const BAND_FILL = 'var(--series-1)';
 
 export interface TimeSeriesLine {
   label: string;
-  /** Points in ascending time order. */
-  points: { t: number; value: number }[];
+  /** Points in ascending time order. `null` values are gaps: the path breaks. */
+  points: { t: number; value: number | null }[];
 }
 
 export interface TimeSeriesBand {
@@ -24,9 +24,10 @@ export interface TimeSeriesBand {
  * Time-series chart for dynamic trajectories.
  *
  * One frame per quantity (no dual axes): each chart shows deterministic lines
- * plus, optionally, a single P90–P10 uncertainty band with its P50 spine. The
+ * plus, optionally, a single P10–P90 ensemble range with its P50 spine. The
  * band is a shaded area between two curves of the same quantity, not a second
- * series on a second scale.
+ * series on a second scale. Band math is unchanged: the range runs from the
+ * conservative P90 (percentile 0.1) to the optimistic P10 (percentile 0.9).
  */
 export function TimeSeriesChart({
   title,
@@ -49,7 +50,7 @@ export function TimeSeriesChart({
 }) {
   const allT = [...lines.flatMap((l) => l.points.map((p) => p.t)), ...(band?.points.map((p) => p.t) ?? [])];
   const allV = [
-    ...lines.flatMap((l) => l.points.map((p) => p.value)),
+    ...lines.flatMap((l) => l.points.map((p) => p.value).filter((v): v is number => v !== null)),
     ...(band?.points.flatMap((p) => [p.p90, p.p50, p.p10]) ?? []),
   ];
   if (allT.length === 0 || allV.length === 0) {
@@ -69,8 +70,21 @@ export function TimeSeriesChart({
   const x = linearScale(domainX, [PLOT_MARGIN.left, WIDTH - PLOT_MARGIN.right]);
   const y = linearScale(domainY, [HEIGHT - PLOT_MARGIN.bottom, PLOT_MARGIN.top]);
 
-  const line = (points: { t: number; value: number }[]) =>
-    points.map((p, j) => `${j === 0 ? 'M' : 'L'}${x(p.t)},${y(p.value)}`).join(' ');
+  // A null value breaks the path so missing observations read as gaps,
+  // never as interpolated segments.
+  const line = (points: { t: number; value: number | null }[]) => {
+    let d = '';
+    let penDown = false;
+    for (const p of points) {
+      if (p.value === null) {
+        penDown = false;
+        continue;
+      }
+      d += `${penDown ? 'L' : 'M'}${x(p.t)},${y(p.value)} `;
+      penDown = true;
+    }
+    return d;
+  };
 
   const autoDescription =
     description ??
@@ -79,7 +93,7 @@ export function TimeSeriesChart({
 
   const legendItems = [
     ...lines.map((l, i) => ({ label: l.label, color: LINE_COLORS[i % LINE_COLORS.length]! })),
-    ...(band ? [{ label: `${band.label} P90–P10`, color: BAND_FILL }] : []),
+    ...(band ? [{ label: `${band.label} P10–P90 ensemble range`, color: BAND_FILL }] : []),
   ];
 
   return (
@@ -111,7 +125,7 @@ export function TimeSeriesChart({
             fill={BAND_FILL}
             opacity={0.18}
           >
-            <title>{`${band.label}: P90–P10 uncertainty band across ensemble trajectories`}</title>
+            <title>{`${band.label}: P10–P90 ensemble range across trajectories (P90 conservative to P10 optimistic)`}</title>
           </path>
         ) : null}
         {band ? (

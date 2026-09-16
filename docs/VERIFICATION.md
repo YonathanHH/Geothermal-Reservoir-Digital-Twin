@@ -164,6 +164,26 @@ consistency, following the same spirit as §3 above:
   drops further; more injection holds pressure higher; injection alone
   repressurises.
 
+## Telemetry (Phase 1.5, `packages/core/test/telemetry.test.ts`)
+
+The sensor layer is held to exactness where exactness is possible, and to
+calibrated statistics elsewhere:
+
+- **Zero-noise mode** reproduces hidden truth bit-for-bit (all `ok`, residual 0).
+- **Determinism**: same seed ⇒ identical records; different seed ⇒ different
+  readings; per-trajectory streams stable under ensemble resizing.
+- **Stream isolation**: retuning one channel's sensor leaves every other
+  channel's record bit-identical; noise draws are independent of the true
+  values themselves.
+- **Calibration**: per-channel RMSE lands within 0.7–1.4× of configured σ with
+  near-zero mean residual; an injected bias is recovered in the mean residual.
+- **Gaps**: dropouts keep the record shape with `missing` + reason; absurd bias
+  is `rejected` as out-of-range rather than passed on; counts always reconcile
+  (`nOk + nMissing + nRejected = n`).
+- **Cadence**: monthly observes every state with matching timestamps;
+  coarser cadences subsample without changing the schema; invalid configs throw.
+- **Immutability**: observing frozen trajectories leaves them untouched.
+
 ## Summary
 
 | Claim | Standard | Result |
@@ -174,7 +194,8 @@ consistency, following the same spirit as §3 above:
 | Runs are reproducible and independent per parameter | Exact | Passes |
 | Sampler has the right mean, spread and support | Converged at large n | Passes |
 | Dynamic tank conserves mass/energy, converges in dt, reproduces exactly | Internal consistency (above) | Passes |
+| Telemetry reproduces truth at zero noise, isolates streams, calibrates to σ | Exact + statistical (above) | Passes |
 
-**What this does not establish:** that the volumetric method — or the
-reduced-order tank — is a good model of a real reservoir, or that the
-demonstration inputs describe anything. See `ASSUMPTIONS.md`.
+**What this does not establish:** that the volumetric method, the
+reduced-order tank, or the synthetic telemetry resemble any real reservoir or
+field instrumentation. See `ASSUMPTIONS.md`.
