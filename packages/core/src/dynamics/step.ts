@@ -57,6 +57,72 @@ export interface StepEnthalpyProviders {
   injection?: EnthalpyProvider;
 }
 
+/**
+ * Combined rock + water volumetric heat capacity at (p, T) — static eq. 1.
+ * Extracted so assimilation can rebuild a consistent energy after a state
+ * update using the identical formula the step itself uses.
+ */
+export function combinedHeatCapacity(
+  pressureBar: number,
+  temperatureC: number,
+  params: DynamicParams,
+): number {
+  return (
+    rhoPT(pressureBar, temperatureC) * cpPT(pressureBar, temperatureC) * params.porosity +
+    (1 - params.porosity) * params.rockHeatCapacityKjM3C
+  );
+}
+
+/**
+ * Stored thermal energy for a (T, p) pair — static eq.-2 form
+ * `V · CT(p,T) · (T − Ta)`. Same re-anchor convention as `initialDynamicState`.
+ */
+export function thermalEnergyFromTP(
+  temperatureC: number,
+  pressureBar: number,
+  params: DynamicParams,
+): number {
+  return (
+    (params.volumeM3 * combinedHeatCapacity(pressureBar, temperatureC, params) *
+      (temperatureC - params.ambientTemperatureC)) / KJ_PER_PJ
+  );
+}
+
+/**
+ * Specific available work at a (T, p) pair — static exergy eq. 7 per kg.
+ */
+export function specificWorkKjKg(
+  temperatureC: number,
+  pressureBar: number,
+  params: DynamicParams,
+  providers: StepEnthalpyProviders = {},
+): number {
+  const hRes = providers.reservoir ?? hLT;
+  const saturationBar = psatT(temperatureC);
+  const hwhKjKg = hRes(temperatureC, pressureBar) - (params.depthM * 9.81) / 1000;
+  const swhKjKgK = sPh(saturationBar, hwhKjKg);
+  const hoKjKg = hLT(params.ambientTemperatureC);
+  const soKjKgK = sLT(params.ambientTemperatureC);
+  return hwhKjKg - hoKjKg - (params.ambientTemperatureC + 273.15) * (swhKjKgK - soKjKgK);
+}
+
+/**
+ * Instantaneous nameplate-equivalent capacity at a (T, p) pair and production
+ * rate — static exergy eqs. 7–9. Identical formula to the in-step diagnostic.
+ */
+export function instantaneousCapacity(
+  temperatureC: number,
+  pressureBar: number,
+  productionKgS: number,
+  params: DynamicParams,
+  providers: StepEnthalpyProviders = {},
+): number {
+  const workKjKg = specificWorkKjKg(temperatureC, pressureBar, params, providers);
+  return (
+    (productionKgS * workKjKg * params.utilizationFactor) / (1000 * params.capacityFactor)
+  );
+}
+
 function requireFinite(value: number, name: string): void {
   if (!Number.isFinite(value)) {
     throw new RangeError(`step: ${name} must be finite, got ${value}.`);
@@ -142,10 +208,7 @@ export function step(
 
   // Frozen properties at the incoming state.
   const densityKgM3 = rhoPT(state.pressureBar, state.temperatureC);
-  const heatCapacityKjKgK = cpPT(state.pressureBar, state.temperatureC);
-  const ctKjM3C =
-    densityKgM3 * heatCapacityKjKgK * params.porosity +
-    (1 - params.porosity) * params.rockHeatCapacityKjM3C;
+  const ctKjM3C = combinedHeatCapacity(state.pressureBar, state.temperatureC, params);
 
   // Specific enthalpies. Production uses the wellhead basis (static eq. 4);
   // injection uses the injected-fluid temperature with no pressure dependence;
@@ -194,16 +257,14 @@ export function step(
   }
 
   // Power diagnostic: static exergy per kg at the new state, times current rate.
-  const saturationBar = psatT(nextTemperatureC);
-  const hwhKjKg = hRes(nextTemperatureC, nextPressureBar) - (params.depthM * 9.81) / 1000;
-  const swhKjKgK = sPh(saturationBar, hwhKjKg);
-  const hoKjKg = hLT(params.ambientTemperatureC);
-  const soKjKgK = sLT(params.ambientTemperatureC);
-  const specificWorkKjKg =
-    hwhKjKg - hoKjKg - (params.ambientTemperatureC + 273.15) * (swhKjKgK - soKjKgK);
-  const capacityMweInstant =
-    (controls.productionKgS * specificWorkKjKg * params.utilizationFactor) /
-    (1000 * params.capacityFactor);
+  const workKjKg = specificWorkKjKg(nextTemperatureC, nextPressureBar, params, providers);
+  const capacityMweInstant = instantaneousCapacity(
+    nextTemperatureC,
+    nextPressureBar,
+    controls.productionKgS,
+    params,
+    providers,
+  );
 
   const dtYears = dtSeconds / (365.25 * 24 * 60 * 60);
   const diagnostics: DynamicStepDiagnostics = {
@@ -213,7 +274,7 @@ export function step(
     hRechargeKjKg,
     dMassKg,
     dEnergyPj,
-    specificWorkKjKg,
+    specificWorkKjKg: workKjKg,
   };
   return {
     diagnostics,

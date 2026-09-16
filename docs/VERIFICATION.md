@@ -139,7 +139,7 @@ pinned to the maximum.
 
 ```bash
 pnpm install
-pnpm test      # 99 unit tests (74 static + 25 dynamics)
+pnpm test      # 147 unit tests (74 static + 25 dynamics + 21 telemetry + 27 assimilation)
 pnpm verify    # the report above (static engine only)
 pnpm run dev   # dashboard at localhost:3000
 ```
@@ -195,7 +195,38 @@ calibrated statistics elsewhere:
 | Sampler has the right mean, spread and support | Converged at large n | Passes |
 | Dynamic tank conserves mass/energy, converges in dt, reproduces exactly | Internal consistency (above) | Passes |
 | Telemetry reproduces truth at zero noise, isolates streams, calibrates to σ | Exact + statistical (above) | Passes |
+| EnKF corrects a biased prior vs a free-run control, reproduces exactly | Experimental, 3 seeds (above) | Passes |
 
 **What this does not establish:** that the volumetric method, the
 reduced-order tank, or the synthetic telemetry resemble any real reservoir or
 field instrumentation. See `ASSUMPTIONS.md`.
+
+## Assimilation (Phase 2, `packages/core/test/assimilation.test.ts`)
+
+The filter has no external reference either, so it is held to exactness where
+exact, statistics where statistical, and a head-to-head experiment overall:
+
+- **Linear algebra**: means, cross-covariances and 1×1/2×2 inverses verified;
+  singular covariances throw instead of inverting.
+- **Analysis behaviour**: posterior mean moves toward observations, spread
+  shrinks, empty observation sets pass forecasts through untouched, per-cycle
+  streams reproduce exactly and isolate cycles.
+- **Twin experiment** (n = 30, +15 °C prior bias, yearly T/p assimilation):
+  initial prior error > 10 °C; final posterior/free error ratio < 0.2 (T) and
+  < 0.4 (p) — measured ≈0.02–0.04 and ≈0.05–0.13 across seeds 42, 7, 123;
+  spread collapses; every cycle stays liquid-domain physical; same seed
+  reproduces cycle-for-cycle.
+- **Refactor guard**: extracted `thermalEnergyFromTP`/`instantaneousCapacity`
+  reproduce the step's own energy and capacity to 9 decimals.
+- **Observation regimes** (Phase 2.5): perfect (zero-noise) observations drive
+  the error ratio to ≈0 with no skipped analyses; 40% dropout on both channels
+  still validates (ratio < 0.3, many single-channel cycles); 5× sensor noise
+  still improves on free (ratio < 0.3 T, < 0.9 p); a two-member ensemble runs
+  without collapsing.
+- **Posterior states are real model states**: `posteriorToState` rebuilds
+  energy/capacity with the forward model's own formulas exactly, preserves
+  clock and cumulative meters, survives a further `step()`, and refuses
+  unphysical vectors loudly.
+- **Innovations**: every used channel records a finite innovation with a
+  positive expected std; > 80% of temperature innovations sit inside ±2σ;
+  the default run skips no analyses and falls back at most twice.

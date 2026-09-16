@@ -17,7 +17,8 @@
 | Dynamic reduced-order model | Phase 1 done (tank + ensemble, no assimilation) |
 | Synthetic field telemetry | Phase 1.5 done (observation layer, no assimilation) |
 | ML surrogate | Later |
-| Data assimilation | Later |
+| Data assimilation | Phase 2 done (EnKF prototype on synthetic truth) |
+| Twin hardening + validation | Phase 2.5 done (regimes, innovations, consistency guards) |
 
 ---
 
@@ -100,6 +101,14 @@ stack is a deliberate fit to the current scope, not a permanent commitment.
 
 Wellhead pressure and temperature, production and injection rates, downhole measurements.
 Recursive parameter calibration or a Kalman-filter-style framework.
+
+Phase 2 (done, prototype, `packages/core/src/assimilation/`,
+`ASSIMILATION_VERSION 0.1.0`): stochastic EnKF on state [T, p, M] with the
+tank `step()` as forward model, wellhead T/p telemetry as observations, and a
+twin experiment (biased prior + free-run control) showing ~95%+ error
+reduction on synthetic truth. State estimation only — no parameter
+calibration, no real data. Remaining: parameter estimation, model-error
+treatment, real telemetry.
 
 **This is the phase that would make "digital twin" an honest description.** Until dynamic
 observations are actually assimilated, the term stays out of the documentation.

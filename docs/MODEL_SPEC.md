@@ -346,3 +346,61 @@ index, channel, source, unit, true and observed values, residual, quality and
 reason — the flat handoff record a Phase-2 estimator will consume via
 `observeTrajectory` / `observeEnsemble` / `summarizeTelemetry` (per-channel
 RMSE and mean residual over usable points).
+
+## 13. Ensemble state estimation (Phase 2)
+
+`packages/core/src/assimilation/`. A stochastic Ensemble Kalman Filter over
+the dynamic tank, versioned as `ASSIMILATION_VERSION` (`0.1.0`). A
+reduced-order synthetic prototype, not a production assimilation system.
+
+### 13.1 State, forecast, observation
+
+Estimated state vector `x = [T, p, M]` (temperature, pressure, fluid mass).
+Forecast is the existing `step()`; rates are known controls and generation a
+diagnostic, so neither is estimated. Stored energy and capacity are rebuilt
+from each posterior (T, p) with the same eq.-2/exergy formulas the step uses
+(`thermalEnergyFromTP`, `instantaneousCapacity`), keeping posterior states
+internally consistent by construction.
+
+Assimilated channels are wellhead temperature and pressure only: both observe
+the state almost directly, so the observation operator H is linear identity
+rows and R is diagonal from the telemetry sensor sigmas. Missing readings
+contribute no row — a fully-missing cycle passes the forecast through
+untouched. Generation readings are displayed but not assimilated.
+
+### 13.2 Analysis (perturbed observations)
+
+```
+Dⱼ = y + εⱼ,  εⱼ ∼ N(0, R)     (fresh `seed:enkf:{cycle}` stream per cycle)
+K  = P_xy · (P_yy + R)⁻¹         (sample covariances; 1×1 or 2×2 inverse)
+xⱼᵃ = xⱼᶠ + K · (Dⱼ − H xⱼᶠ)
+```
+
+Posteriors failing physical validation (finite, liquid-domain T, positive p
+and M) keep their forecast member and are counted as `totalFallbacks` —
+tracked separately from `analysisSkipped` cycles where the innovation
+covariance itself was singular and no update was attempted. Zero-noise
+(σ = 0) observations are valid: perturbed observations then equal the reading
+and the gain trusts them fully. Optional
+multiplicative inflation (default 1 = off) is supported but not needed for the
+validation experiment.
+
+### 13.3 Twin experiment
+
+`runTwinExperiment({ n, seed, …, assimilationIntervalSteps = 12,
+initialTemperatureBiasC = 15 })`: one most-likely truth runs the horizon while
+its noisy telemetry is recorded once; an N-member ensemble sampling full
+parameter uncertainty on bit-identical streams starts +15 °C hot (energy
+rebuilt consistently) and is corrected yearly; a parallel free run of the same
+members is the control. Members exhausting their tank drop out per run and
+cycle metrics use members active in both. Headline metric: final-cycle
+posterior/free error ratio (≈0.02–0.04 for T, ≈0.05–0.13 for p at n = 30–50).
+
+### 13.4 Innovation diagnostics (Phase 2.5)
+
+Every cycle with usable readings records the innovation (observation minus
+prior mean) and its expected std, `sqrt(sample variance + R)`, per channel —
+the numbers that audit whether the forecast uncertainty means what it claims.
+Innovations mostly inside ±2σ indicate honest spread; persistent excursions
+would mean overconfidence. The result also carries all three layer versions
+(model, dynamics, assimilation) as provenance.

@@ -82,7 +82,7 @@ scales on one frame invite the reader to compare series that are not comparable.
 ## Verification
 
 ```bash
-pnpm test      # 120 unit tests (74 static + 25 dynamics + 21 telemetry)
+pnpm test      # 147 unit tests (74 static + 25 dynamics + 21 telemetry + 27 assimilation)
 pnpm verify    # human-readable verification report (static engine)
 ```
 
@@ -140,10 +140,12 @@ synthetic dynamic tank model** (`packages/core/src/dynamics/`, Phase 1: 30-year
 monthly mass/energy balance with explicit pressure state and prescribed
 production/injection controls), plus a synthetic field telemetry layer
 (`packages/core/src/telemetry/`, Phase 1.5: meter noise, dropouts and quality
-flags over recorded trajectories — never real field data). There is no
-assimilation of operational data — so it is not a digital twin, and the docs
-are careful not to call it one. `ROADMAP.md` sets out what adding assimilation
-would take.
+flags over recorded trajectories — never real field data), plus an ensemble
+state-estimation prototype (`packages/core/src/assimilation/`, Phase 2:
+stochastic EnKF correcting a biased prior against synthetic telemetry, with a
+free-run control). Everything looped here is simulated — meters, field and
+estimator alike — so "digital twin" means prototype only. `ROADMAP.md` sets
+out what a real deployment would still require.
 
 The bundled inputs describe a **synthetic demonstration field**. They are illustrative
 values in a plausible range, not an assessment of any real asset.

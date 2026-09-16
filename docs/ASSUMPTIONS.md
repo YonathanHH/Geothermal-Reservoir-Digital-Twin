@@ -247,3 +247,44 @@ state estimator will consume — at which point THESE synthetic readings can be
 swapped for real ones without rewriting the reservoir model. Until real
 observations are actually assimilated, "real-time digital twin" stays out of
 the documentation.
+
+## 13. The state estimator (Phase 2)
+
+Section 13 of `MODEL_SPEC.md` is a prototype ensemble filter on a synthetic
+tank — encouraging results here validate the *loop* (forecast → observe →
+correct), not readiness for a real field. New assumptions:
+
+**Gaussianity is assumed, not shown.** The EnKF is optimal only for linear
+Gaussian systems; the tank is nonlinear (exergy, saturation pressure) and the
+ensemble is small (25–100). It works here because the observation operator is
+linear and the prior stays roughly unimodal. Multimodal posteriors (e.g.
+boiling transitions, which the tank cannot represent anyway) would break it
+silently — the spread would look confident and be wrong.
+
+**Only wellhead T and p are assimilated.** Rates are treated as perfectly
+known controls and generation as a deterministic diagnostic. Real meters have
+their own biases and real rates are uncertain; folding those in would need an
+augmented state or parameter estimation, which is future work — the filter
+currently estimates dynamic state only, never parameters.
+
+**The experiment is favourably configured.** Truth and ensemble share the same
+tank equations (no model error), the same schedule, and well-observed channels
+with small noise. The +15 °C prior bias is large and directly observed, so a
+~95%+ error reduction flatters the method. Real twin performance would be
+worse on every axis: model error, sparser data, unknown biases.
+
+**Ensemble collapse is guarded, not solved.** The 2×2 inverse throws on a
+non-positive determinant; with tiny ensembles or overconfident R the filter
+can still become overconfident gradually. Skipped analyses and posterior
+fallbacks are counted separately (`analysisSkipped` vs `totalFallbacks`) so a
+sick filter cannot hide in a single number. Inflation exists but defaults off;
+watch the spread — and the innovation envelope — not just the mean.
+
+**Innovation coverage flatters a conservative filter.** The expected envelope
+includes prior spread, so ~100% in-envelope readings mean the uncertainty is
+honest-or-wide, not perfectly calibrated. The diagnostic rules out
+overconfidence; it cannot rule out underconfidence.
+
+**"Digital twin" now means prototype.** The dashboard tab earns the name only
+in the synthetic sense: a simulated field, simulated meters, and estimation
+closing the loop. No real asset, no real data, no real-time operation.

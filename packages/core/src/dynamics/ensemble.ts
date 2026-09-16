@@ -77,21 +77,23 @@ export interface DynamicEnsemble {
 }
 
 /** Run the dynamic ensemble and return every trajectory. */
-export function runDynamicEnsemble(config: DynamicEnsembleConfig = {}): DynamicEnsemble {
-  const {
-    n = 1000,
-    seed = 42,
-    parameters = DEFAULT_PARAMETERS,
-    dynamicParameters = DEFAULT_DYNAMIC_PARAMETERS,
-    horizonYears = 30,
-    schedule = defaultSchedule(),
-    label = 'Dynamic base case',
-  } = config;
+export interface SampledEnsembleColumns {
+  staticColumns: Record<ParameterKey, number[]>;
+  dynamicColumns: Record<DynamicParameterKey, number[]>;
+}
 
-  if (!Number.isInteger(n) || n < 2) {
-    throw new RangeError(`runDynamicEnsemble: n must be an integer >= 2, got ${n}`);
-  }
-
+/**
+ * Draw parameter columns with one isolated stream per parameter —
+ * `mulberry32(seedFromString(`${seed}:${key}`))`. Exported so the twin
+ * experiment draws bit-identical columns for the same seed; the static
+ * engine itself is not called and not modified.
+ */
+export function sampleEnsembleColumns(
+  n: number,
+  seed: number,
+  parameters: Record<ParameterKey, ParameterSpec>,
+  dynamicParameters: Record<DynamicParameterKey, DynamicParameterSpec>,
+): SampledEnsembleColumns {
   // Static columns: identical streams to runMonteCarlo for the same seed.
   const staticColumns = {} as Record<ParameterKey, number[]>;
   for (const key of PARAMETER_KEYS) {
@@ -112,6 +114,31 @@ export function runDynamicEnsemble(config: DynamicEnsembleConfig = {}): DynamicE
       dynamicColumns[key][i] = sample(rng, spec.distribution, spec.mostLikely, spec.min, spec.max);
     }
   }
+  return { staticColumns, dynamicColumns };
+}
+
+/** Run the dynamic ensemble and return every trajectory. */
+export function runDynamicEnsemble(config: DynamicEnsembleConfig = {}): DynamicEnsemble {
+  const {
+    n = 1000,
+    seed = 42,
+    parameters = DEFAULT_PARAMETERS,
+    dynamicParameters = DEFAULT_DYNAMIC_PARAMETERS,
+    horizonYears = 30,
+    schedule = defaultSchedule(),
+    label = 'Dynamic base case',
+  } = config;
+
+  if (!Number.isInteger(n) || n < 2) {
+    throw new RangeError(`runDynamicEnsemble: n must be an integer >= 2, got ${n}`);
+  }
+
+  const { staticColumns, dynamicColumns } = sampleEnsembleColumns(
+    n,
+    seed,
+    parameters,
+    dynamicParameters,
+  );
 
   const trajectories: DynamicTrajectory[] = [];
   const rejected: DynamicEnsemble['rejected'] = [];
