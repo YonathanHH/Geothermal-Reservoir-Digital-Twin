@@ -145,9 +145,61 @@ presented as one.
 
 ## 10. Scope: this is not a digital twin
 
-There is no time dimension, no state that evolves, no production or injection control,
-and no assimilation of measurements. The honest description is **a static probabilistic
-resource assessment with scenario analysis**.
+There is no assimilation of measurements. The honest description is **a static
+probabilistic resource assessment with scenario analysis plus a reduced-order
+synthetic dynamic model**.
 
-A digital twin tracks a real asset by ingesting observations of it. `ROADMAP.md` sets out
-what that would take; until it exists, the term is not used here.
+A digital twin tracks a real asset by ingesting observations of it. `ROADMAP.md`
+sets out what that would take; until it exists, the term is not used here.
+
+## 11. The dynamic tank model (Phase 1)
+
+Section 11 of `MODEL_SPEC.md` is a reduced-order synthetic reservoir model, not
+a high-fidelity reservoir simulator. Every equation below states what it
+represents and what it does not.
+
+**Lumped tank.** One well-mixed block: no spatial gradients, no wells, no
+flow paths, no boiling front, no chemistry or scaling, no rock mechanics. The
+temperature is single-valued by construction, so thermal breakthrough and
+short-circuiting cannot appear.
+
+**Explicit Euler with frozen properties.** Each step evaluates density, heat
+capacity and enthalpies at the incoming state and holds them over `dt`. The
+update is first-order exact only as `dt → 0`; the dt-convergence test pins the
+monthly-step error to under ~2% of the temperature span against a quarter-step
+reference. Halving the step must shrink the error.
+
+**Pressure is a linearised storage response, decoupled from temperature.**
+`dp = dM / (ρ·Vp·cTotal)` treats the tank as a confined liquid volume with a
+single effective compressibility, and temperature enters only through the frozen
+density. There is no saturation coupling, no two-phase buffering and no
+geomechanical feedback. `cTotal` is centred an order of magnitude above pure
+liquid + pore compressibility precisely because it stands in for fracture
+compliance and boundary support the tank does not resolve — treat it as a
+tuning/storage parameter, never as a laboratory measurement.
+
+**Recharge is constant and thermally neutral.** It adds mass at reservoir
+enthalpy `hL(T_t)`, i.e. it dilutes nothing and cools nothing. Real recharge is
+cooler and often pressure-dependent; this choice is the least arbitrary option
+that needs no extra parameters, and it keeps the recharge contribution small by
+default (most-likely 2 kg/s against 80 kg/s of production).
+
+**Injection is fully mixed at 60 °C with no pressure dependence.** Enthalpy is
+`hL(T_inj)`; injection pressure is ignored. The enthalpy providers are
+injectable so `hPT(p, T)` can replace `hL(T)` later without an API redesign.
+
+**Initial pressure is hydrostatic-or-saturated, whichever is higher.** Where a
+hot, shallow static realization has a water column below its saturation
+pressure, V1 pressurises the feed zone to `1.001 × psat` rather than rejecting
+the realization. That is an assumption about the feed zone, stated here so it
+can be revisited with depth-dependent pressure data.
+
+**Refusal instead of extrapolation.** Mass depletion, non-positive pressure, or
+a temperature leaving the IF97 liquid domain throws per step and lands in the
+ensemble `rejected[]` with the step index and reason. A small tank cannot
+sustain a large rate for 30 years; the model says so loudly.
+
+**`P_inst` is not the static capacity.** The instantaneous diagnostic answers
+"what does this rate deliver at this state", while the static chain answers
+"what average capacity does the whole stock sustain over the project life".
+Comparing the two numbers directly is a category error.

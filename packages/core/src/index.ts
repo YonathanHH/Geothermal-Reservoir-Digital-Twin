@@ -16,3 +16,4 @@ export * from './monteCarlo.js';
 export * from './sensitivity.js';
 export * from './scenarios.js';
 export * as steam from './steam/index.js';
+export * as dynamics from './dynamics/index.js';

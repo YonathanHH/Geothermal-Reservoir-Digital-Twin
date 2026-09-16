@@ -197,5 +197,94 @@ on the run, which is what makes an archived result reproducible.
 
 ## 10. Not implemented
 
-No time dimension, state evolution, production or injection controls, well models, ML
-surrogate, data assimilation, or natural-language layer. See `ROADMAP.md`.
+No production or injection well models, ML surrogate, data assimilation, or
+natural-language layer. See `ROADMAP.md`.
+
+## 11. Dynamic reduced-order tank model (Phase 1)
+
+`packages/core/src/dynamics/`. A reduced-order synthetic reservoir model, not a
+high-fidelity reservoir simulator. The static assessment characterises the
+reservoir; the dynamics evolve it. Pure explicit-Euler steps, no randomness in
+the step itself; versioned separately as `DYNAMICS_VERSION` (`0.1.0`), since no
+static numerical output changed.
+
+Horizon: 30 years at a 1-month timestep (`HORIZON_YEARS`, `STEPS_PER_YEAR`,
+`TOTAL_STEPS = 360` in `dynamics/schedule.ts`). Controls are prescribed rates
+only — `productionKgS`, `injectionKgS`, `injectionTemperatureC` (default 80, 56
+and 60 °C) — with an explicit per-step schedule when time variation is needed.
+There is no pressure-target controller yet.
+
+### 11.1 Dynamic-only uncertain parameters
+
+Sampled alongside the static table from their own RNG streams
+(`seed:cTotal`, `seed:recharge`), so static columns stay bit-identical:
+
+| Parameter | Symbol | Unit | Min | Most likely | Max | Distribution |
+|---|---|---|---:|---:|---:|---|
+| Total compressibility | cTotal | 1/bar | 0.002 | 0.008 | 0.03 | PERT |
+| Natural recharge rate | recharge | kg/s | 0.5 | 2 | 5 | PERT |
+
+`cTotal` is an effective pressure-storage parameter, not a measured property;
+`recharge` is a small constant inflow whose default most-likely value is forty
+times smaller than default production, so the baseline stays
+production/injection driven.
+
+### 11.2 Initialisation
+
+`dynamics/init.ts`, `initialDynamicState(inputs, { totalCompressibilityPerBar, rechargeKgS })`:
+
+```
+V   = A · 10⁶ · H                                        [m³]
+Vp  = V · φ                                             [m³]
+p0  = max(ρ0 · 9.81 · D / 10⁵, 1.001 · psat(T0))        [bar]
+M0  = Vp · ρ(p0, T0)                                    [kg]
+E0  = V · CT(p0, T0) · (T0 − Ta) / 10¹²                 [PJ]
+CT(p, T) = ρ(p, T) · cp(p, T) · φ + (1 − φ) · CR        [kJ/m³/°C]
+```
+
+`T0` is the static reservoir temperature; `p0` is the hydrostatic column at
+reservoir liquid density, raised to the `1.001 × psat` liquid margin where the
+column does not clear saturation (hot and shallow). `E0` is the static eq.-2
+form re-anchored at `p0`, which is what makes an idle tank exactly idle; it
+agrees with static `QR` to well under a percent.
+
+### 11.3 One step
+
+`dynamics/step.ts`, `step(state, controls, params, dtSeconds)` with frozen
+properties at the incoming state:
+
+```
+Mass:   M_{t+1} = M_t + (q_inj − q_prod + q_re) · dt
+Energy: E_{t+1} = E_t + (q_inj·h_inj + q_re·h_re − q_prod·h_prod) · dt / 10¹²   [PJ]
+  h_prod = hRes(T_t) − D · 9.81 / 1000        [kJ/kg, wellhead basis as in §2.4]
+  h_inj  = hInj(T_inj)                        [kJ/kg, default hL at 60 °C, no p dependence]
+  h_re   = hRes(T_t)                          [kJ/kg, recharge arrives at reservoir T]
+T_{t+1} = Ta + E_{t+1} · 10¹² / (V · CT_t)    [°C, explicit inversion of §2.2]
+p_{t+1} = p_t + (M_{t+1} − M_t) / (ρ_t · Vp · cTotal)   [bar]
+```
+
+`hRes`/`hInj` are injectable `EnthalpyProvider(temperatureC, pressureBar?)`
+functions defaulting to `hL(T)`, so a pressure-dependent `hPT(p, T)` can be
+supplied later without redesigning the API. Injection pressure is ignored in V1.
+
+### 11.4 Instantaneous capacity diagnostic
+
+The static exergy (§2.7–2.9) evaluated at the new state and the current rate:
+
+```
+w     = (hWH − ho − (Ta + 273.15) · (sWH − so))   [kJ/kg]
+P_inst = q_prod · w · u / (1000 · F)              [MWe, nameplate-equivalent]
+```
+
+This is the power the current rate sustains at the current state — a different
+concept from the static lifetime-average capacity, and not comparable to it.
+
+### 11.5 Ensemble
+
+`dynamics/ensemble.ts`, `runDynamicEnsemble({ n, seed, parameters,
+dynamicParameters, schedule })`. Returns every trajectory (`TOTAL_STEPS + 1`
+states), final capacity/temperature/pressure series, and `rejected[]` entries
+with the last completed step and reason. Tanks that deplete their mass or
+pressure storage throw inside `step` and are recorded rather than producing
+`NaN` — e.g. a small tank cannot sustain 80 kg/s for 30 years, and the model
+refuses rather than misleads.

@@ -82,8 +82,8 @@ scales on one frame invite the reader to compare series that are not comparable.
 ## Verification
 
 ```bash
-pnpm test      # 74 unit tests
-pnpm verify    # human-readable verification report
+pnpm test      # 99 unit tests (74 static + 25 dynamics)
+pnpm verify    # human-readable verification report (static engine)
 ```
 
 Three kinds of claim, held to different standards:
@@ -135,10 +135,12 @@ checked line by line.
 
 ## Scope
 
-This is a **static probabilistic resource assessment**. There is no time dimension, no
-production or injection controls, and no assimilation of operational data — so it is not
-a digital twin, and the docs are careful not to call it one. `ROADMAP.md` sets out what
-adding time would take.
+This is a **static probabilistic resource assessment with a reduced-order
+synthetic dynamic tank model** (`packages/core/src/dynamics/`, Phase 1: 30-year
+monthly mass/energy balance with explicit pressure state and prescribed
+production/injection controls). There is no assimilation of operational data —
+so it is not a digital twin, and the docs are careful not to call it one.
+`ROADMAP.md` sets out what adding assimilation would take.
 
 The bundled inputs describe a **synthetic demonstration field**. They are illustrative
 values in a plausible range, not an assessment of any real asset.

@@ -139,10 +139,30 @@ pinned to the maximum.
 
 ```bash
 pnpm install
-pnpm test      # 74 unit tests
-pnpm verify    # the report above
+pnpm test      # 99 unit tests (74 static + 25 dynamics)
+pnpm verify    # the report above (static engine only)
 pnpm run dev   # dashboard at localhost:3000
 ```
+
+## Dynamics (Phase 1, `packages/core/test/dynamics.test.ts`)
+
+The tank has no external reference standard, so it is held to internal
+consistency, following the same spirit as §3 above:
+
+- **Mass balance**: `M_end − M0` equals net rate × time to 4 decimals over 360
+  steps; cumulative meters match their rates exactly.
+- **Energy balance**: `dE` per step equals the enthalpy-weighted fluxes over
+  1e12 to 9 decimals.
+- **Static limit**: zero production/injection/recharge holds T, p, M and E to 9
+  decimals over 30 years (the init re-anchor at `p0` is what makes this exact).
+- **dt convergence**: monthly vs quarter-monthly temperature agrees to under 2%
+  of the temperature span, and halving dt shrinks the error (first-order).
+- **Reproducibility**: same seed ⇒ identical trajectories; static columns equal
+  the static engine's `inputSeries` index by index; fixing `cTotal` leaves the
+  recharge stream untouched at shared indices.
+- **Qualitative behaviour**: net extraction declines T, p and E; more production
+  drops further; more injection holds pressure higher; injection alone
+  repressurises.
 
 ## Summary
 
@@ -153,6 +173,8 @@ pnpm run dev   # dashboard at localhost:3000
 | Monte Carlo is internally consistent | Linearity identity at n = 200,000 | Passes |
 | Runs are reproducible and independent per parameter | Exact | Passes |
 | Sampler has the right mean, spread and support | Converged at large n | Passes |
+| Dynamic tank conserves mass/energy, converges in dt, reproduces exactly | Internal consistency (above) | Passes |
 
-**What this does not establish:** that the volumetric method is a good model of a real
-reservoir, or that the demonstration inputs describe anything. See `ASSUMPTIONS.md`.
+**What this does not establish:** that the volumetric method — or the
+reduced-order tank — is a good model of a real reservoir, or that the
+demonstration inputs describe anything. See `ASSUMPTIONS.md`.

@@ -14,7 +14,7 @@
 | Correlated inputs | Next |
 | Sobol sensitivity indices | Next |
 | Export | Next |
-| Dynamic reduced-order model | Later |
+| Dynamic reduced-order model | Phase 1 done (tank + ensemble, no assimilation) |
 | ML surrogate | Later |
 | Data assimilation | Later |
 
@@ -72,6 +72,12 @@ every equation needs an `ASSUMPTIONS.md` entry stating what it represents and wh
 not. The static model becomes the initialisation layer.
 
 *Done when* a multi-year scenario produces time-series output with uncertainty bands.
+
+Phase 1 (done, `packages/core/src/dynamics/`, `DYNAMICS_VERSION 0.1.0`): monthly
+tank mass/energy balance over 30 years with explicit pressure state, prescribed
+production/injection controls, static-model initialisation, and a seeded
+ensemble runner. No well models, no pressure-target control, no assimilation —
+those stay below.
 
 ### High-fidelity simulation and ML surrogate
 
