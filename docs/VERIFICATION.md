@@ -139,7 +139,7 @@ pinned to the maximum.
 
 ```bash
 pnpm install
-pnpm test      # 170 unit tests (74 static + 25 dynamics + 21 telemetry + 27 assimilation + 23 spatial)
+pnpm test      # 186 unit tests (74 static + 25 dynamics + 21 telemetry + 27 assimilation + 23 spatial + 16 operations)
 pnpm verify    # the report above (static engine only)
 pnpm run dev   # dashboard at localhost:3000
 ```
@@ -197,6 +197,7 @@ calibrated statistics elsewhere:
 | Telemetry reproduces truth at zero noise, isolates streams, calibrates to σ | Exact + statistical (above) | Passes |
 | EnKF corrects a biased prior vs a free-run control, reproduces exactly | Experimental, 3 seeds (above) | Passes |
 | Spatial wells stay in-bounds, match the grid, observe reproducibly | Exact + bounded (below) | Passes |
+| Scenario forecasts branch reproducibly; alerts fire on synthetic decline | Exact + behavioural (below) | Passes |
 
 **What this does not establish:** that the volumetric method, the
 reduced-order tank, or the synthetic telemetry resemble any real reservoir or
@@ -252,3 +253,23 @@ mapping to bounded consistency:
   order-independent; gaps carry flags; inputs never mutated.
 - **Bridge**: `conditionsSeries` maps trajectories step-for-step and
   time-stamps through, matching single-step calls exactly.
+
+## Operations (Phase 4, `packages/core/test/operations.test.ts`)
+
+Forecasts and rules compose existing tools, so they are held to exactness
+against those tools plus behavioural checks on synthetic histories:
+
+- **Branching**: forecasts from a recorded state are deterministic, leave the
+  branch point unmutated, advance the clock exactly, decline under extraction
+  and truncate with a named reason on depletion; bad horizons throw.
+- **Scenarios**: baseline controls hold before the branch step and scale after;
+  custom absolute rates validate eagerly; bands stay ordered (P90 ≤ P50 ≤ P10),
+  carry real spread, start at zero width on the shared branch state, and
+  reproduce exactly for a seed.
+- **Alerts**: quiet on flat healthy histories; pressure decline escalates
+  watch → warning at the documented rates; thermal decline, floor proximity,
+  gap share, overconfidence and forecast exhaustion each fire on constructed
+  histories and stay silent off them; severities sort warning-first.
+- **Outlook**: healthy forecasts report no floor hit with positive cumulative
+  generation; aggressive production dates a floor hit, and easier rates push
+  it later or beyond the horizon.

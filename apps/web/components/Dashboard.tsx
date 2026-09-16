@@ -24,6 +24,7 @@ import { DynamicModelView } from './DynamicModelView';
 import { ExceedanceChart } from './ExceedanceChart';
 import { FieldMapView } from './FieldMapView';
 import { HistogramChart } from './HistogramChart';
+import { OperationsView } from './OperationsView';
 import { ParameterTable } from './ParameterTable';
 import { RunControls, ThemeToggle } from './RunControls';
 import { ScenarioLab } from './ScenarioLab';
@@ -32,7 +33,7 @@ import { TelemetryView } from './TelemetryView';
 import { TornadoChart } from './TornadoChart';
 import { TwinView } from './TwinView';
 
-const TABS = ['Overview', 'Monte Carlo', 'Inputs & sensitivity', 'Scenario lab', 'Dynamic model', 'Field telemetry', 'Digital twin', 'Field map'] as const;
+const TABS = ['Overview', 'Monte Carlo', 'Inputs & sensitivity', 'Scenario lab', 'Dynamic model', 'Field telemetry', 'Digital twin', 'Field map', 'Operations'] as const;
 type Tab = (typeof TABS)[number];
 
 export function Dashboard() {
@@ -250,6 +251,10 @@ export function Dashboard() {
 
           {tab === 'Field map' ? (
             <FieldMapView parameters={deferred.parameters} seed={settings.seed} />
+          ) : null}
+
+          {tab === 'Operations' ? (
+            <OperationsView parameters={deferred.parameters} seed={settings.seed} />
           ) : null}
         </main>
       )}

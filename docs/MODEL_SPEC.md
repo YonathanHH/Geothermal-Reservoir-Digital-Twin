@@ -450,3 +450,39 @@ meters keep feeding the existing EnKF untouched; wellhead meters are the
 surveillance layer the map displays. The twin link is disaggregation:
 `conditionsSeries` maps truth and posterior-mean trajectories onto wells, so
 the map renders estimated spatial states from the assimilation posterior.
+
+## 15. Operational forecasting (Phase 4)
+
+`packages/core/src/operations/`. Deterministic decision support over the
+existing scientific core, versioned as `OPERATIONS_VERSION` (`0.1.0`). No new
+physics, no estimation, no language models.
+
+### 15.1 Forecast branching
+
+`forecastFromState({ fromState, params, schedule, startStep, nSteps })` runs
+the existing `step()` forward from any recorded state — typically the latest
+posterior mean. Schedules shorter than the horizon hold their final operating
+point constant. Depletion stops the forecast with a reason instead of
+producing NaNs. `forecastEnsemble` repeats the branch over members and counts
+depletions loudly.
+
+### 15.2 Scenarios as diffs
+
+`OPERATIONS_SCENARIOS` (baseline, +25% production, +50% injection, −25%
+production, plus absolute custom rates) scale the operating point in force at
+the branch step; `resolveOperationsSchedule` emits the existing stepwise
+schedule type with baseline controls before the branch. `forecastScenarioEnsemble`
+starts every member from the SAME estimated state with sampled reservoir
+parameters, so bands show parametric uncertainty about this forecast — P90
+conservative (percentile 0.1) through P10 optimistic (percentile 0.9), the
+house convention.
+
+### 15.3 Alerts and outlook
+
+`evaluateAlerts` applies fixed threshold rules (documented heuristic defaults
+in `operations/params.ts`) over twin cycles, telemetry quality and the
+baseline forecast: sustained pressure/thermal decline (watch/warning),
+operating-floor proximity, observation-gap share, innovation coverage, and
+forecast exhaustion. `summarizeOutlook` reads years-to-pressure-floor (5 bar),
+end-state conditions, time-integrated generation and minimum generation off
+recorded forecast states.

@@ -20,6 +20,7 @@
 | Data assimilation | Phase 2 done (EnKF prototype on synthetic truth) |
 | Twin hardening + validation | Phase 2.5 done (regimes, innovations, consistency guards) |
 | Spatial digital twin | Phase 3 done (wells, influence map, assimilation-linked views) |
+| Operational forecasting | Phase 4 done (scenario forecasts, alerts, outlook — no autonomy) |
 
 ---
 
@@ -128,3 +129,13 @@ A presentation layer over deterministic tools — `get_current_state`, `forecast
 `compare_scenarios`, `get_uncertainty`. It explains model outputs and assumptions; it
 never invents reservoir calculations or overrides a deterministic result. Worth building
 only once the scientific core is stable, or it becomes a demo with nothing underneath.
+
+### Operational forecasting
+
+Phase 4 (done, `packages/core/src/operations/`, `OPERATIONS_VERSION 0.1.0`):
+forecasts branching from estimated states, what-if scenarios as rate diffs,
+threshold-rule alerts and remaining-capacity outlooks, all composed from
+existing deterministic tools. The "Operations" dashboard tab presents field
+status, forecast with uncertainty, scenario comparison, alerts and outlook.
+No autonomy, no language models, no real-world performance claims — decision
+support over a synthetic reduced-order twin.

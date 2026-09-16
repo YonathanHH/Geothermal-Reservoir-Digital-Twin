@@ -321,3 +321,28 @@ are the boundary it will use.
 **The grid is a rendering aid.** `fieldGrid` evaluates the same cones for
 colour, not a solved field. Grid–well agreement holds to the smoothness
 bound the tests assert; nothing finer should be claimed.
+
+## 15. Operational forecasting (Phase 4)
+
+Section 15 of `MODEL_SPEC.md` interprets model outputs; it adds no physics.
+New assumptions:
+
+**Thresholds are operational heuristics, not science.** Alert levels (decline
+rates, floor margins, gap shares, coverage floors) encode what a prudent
+engineer would find noteworthy for this synthetic field. They are not
+calibrated to any real asset, and moving them moves the alerts — the rules
+are transparent so the sensitivity is auditable.
+
+**Forecasts inherit every upstream limitation.** A forecast from an estimated
+state carries the tank's lumped physics, the EnKF's Gaussianity assumption
+and the scenario's held-constant rates. Uncertainty bands sample reservoir
+parameters only — they exclude model error, control error and sensor bias.
+
+**The 5 bar floor is an operating convention.** Below it the model still
+computes, but the outlook calls the resource non-viable there. It is a dial
+for "stop trusting production economics", not a physical boiling or
+cavitation point.
+
+**No protection logic, no dispatch.** Alerts are interpretation aids on a
+dashboard. Nothing here trips a valve, schedules maintenance, or authorises
+spending — and the synthetic field has no real wells to protect.
