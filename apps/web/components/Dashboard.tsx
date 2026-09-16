@@ -20,6 +20,7 @@ import {
 } from '@geo/core';
 
 import { CalculationLadder } from './CalculationLadder';
+import { DynamicModelView } from './DynamicModelView';
 import { ExceedanceChart } from './ExceedanceChart';
 import { HistogramChart } from './HistogramChart';
 import { ParameterTable } from './ParameterTable';
@@ -28,7 +29,7 @@ import { ScenarioLab } from './ScenarioLab';
 import { ExceedanceTable, PercentileTiles, SummaryTable } from './StatTiles';
 import { TornadoChart } from './TornadoChart';
 
-const TABS = ['Overview', 'Monte Carlo', 'Inputs & sensitivity', 'Scenario lab'] as const;
+const TABS = ['Overview', 'Monte Carlo', 'Inputs & sensitivity', 'Scenario lab', 'Dynamic model'] as const;
 type Tab = (typeof TABS)[number];
 
 export function Dashboard() {
@@ -230,6 +231,10 @@ export function Dashboard() {
 
           {tab === 'Scenario lab' ? (
             <ScenarioLab n={settings.n} seed={settings.seed} />
+          ) : null}
+
+          {tab === 'Dynamic model' ? (
+            <DynamicModelView parameters={deferred.parameters} seed={settings.seed} />
           ) : null}
         </main>
       )}
