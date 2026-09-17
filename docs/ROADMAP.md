@@ -19,8 +19,8 @@
 | ML surrogate | Later |
 | Data assimilation | Phase 2 done (EnKF prototype on synthetic truth) |
 | Twin hardening + validation | Phase 2.5 done (regimes, innovations, consistency guards) |
-| Spatial digital twin | Phase 3 done (wells, influence map, assimilation-linked views) |
-| Operational forecasting | Phase 4 done (scenario forecasts, alerts, outlook — no autonomy) |
+| Spatial digital twin | Phase 3 done (wells, influence map, assimilation-linked views; control-room refinement with fixed-scale layers and synchronized time, no model changes) |
+| Operational forecasting | Phase 4 done (scenario forecasts, alerts, outlook — no autonomy; twin view branches its updated forecast from the latest estimate) |
 
 ---
 

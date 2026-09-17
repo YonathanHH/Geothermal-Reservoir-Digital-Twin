@@ -4,6 +4,7 @@ import { useDeferredValue, useMemo, useState } from 'react';
 import {
   assimilation,
   dynamics,
+  operations,
   telemetry,
   type ParameterKey,
   type ParameterSpec,
@@ -13,14 +14,16 @@ import { formatNumber } from '../lib/format';
 
 const ENSEMBLE_OPTIONS = [25, 50, 100];
 const INTERVAL_OPTIONS = [6, 12, 24];
+const FORECAST_YEARS = 10;
+const FORECAST_MEMBERS = 20;
 
 /**
- * Digital-twin prototype view (Phase 2).
+ * Digital-twin workspace (Phase 2 + Phase 4 forecast branch).
  *
- * A thin shell over `core/src/assimilation`: the experiment (truth, ensemble,
- * EnKF cycles, free-run control) runs in the core; observation points for the
- * charts come from `telemetry.observeTrajectory` on the truth trajectory.
- * The only arithmetic here is display slicing — no filtering math, no physics.
+ * A thin shell over core assimilation, telemetry and operations: the twin
+ * experiment supplies hidden truth, observations, estimates and controls; one
+ * deterministic scenario forecast branches from the latest estimated state.
+ * Only display slicing happens here.
  */
 export function TwinView({
   parameters,
@@ -75,12 +78,46 @@ export function TwinView({
         seed: deferred.seed,
         trajectoryIndex: 0,
       });
-      return { result, obs, schedule, error: null as string | null };
+
+      let forecast: ReturnType<typeof operations.forecastScenarioEnsemble> | null = null;
+      let forecastError: string | null = null;
+      try {
+        const estimated = result.posteriorMean[result.posteriorMean.length - 1]!;
+        const baseline =
+          operations.OPERATIONS_SCENARIOS.find((scenario) => scenario.id === 'baseline') ??
+          operations.OPERATIONS_SCENARIOS[0]!;
+        const startStep = dynamics.TOTAL_STEPS - 1;
+        const resolved = operations.resolveOperationsSchedule(schedule, baseline, startStep);
+        const { staticColumns, dynamicColumns } = dynamics.sampleEnsembleColumns(
+          FORECAST_MEMBERS,
+          deferred.seed,
+          deferred.parameters,
+          dynamics.DEFAULT_DYNAMIC_PARAMETERS,
+        );
+        forecast = operations.forecastScenarioEnsemble({
+          scenarioId: baseline.id,
+          estimatedState: estimated,
+          parameters: deferred.parameters,
+          dynamicParameters: dynamics.DEFAULT_DYNAMIC_PARAMETERS,
+          staticColumns,
+          dynamicColumns,
+          lifetimeYears: 30,
+          schedule: resolved,
+          startStep,
+          nSteps: FORECAST_YEARS * 12,
+        });
+      } catch (error) {
+        forecastError =
+          error instanceof Error ? error.message : 'The updated forecast could not be calculated.';
+      }
+      return { result, obs, schedule, forecast, forecastError, error: null as string | null };
     } catch (error) {
       return {
         result: null,
         obs: null,
         schedule: null,
+        forecast: null,
+        forecastError: null as string | null,
         error: error instanceof Error ? error.message : 'The twin experiment could not run.',
       };
     }
@@ -104,13 +141,20 @@ export function TwinView({
   ): { t: number; value: number | null }[] =>
     model.result?.cycles.map((c) => ({ t: c.timeYears, value: pick(c) })) ?? [];
 
+  const seriesOf = (
+    states: { timeYears: number; temperatureC: number; pressureBar: number; capacityMweInstant: number }[],
+    pick: (s: (typeof states)[number]) => number,
+  ) => states.map((s) => ({ t: s.timeYears, value: pick(s) }));
+
   const last = model.result?.cycles[model.result.cycles.length - 1];
   const reductionT =
     model.result && Number.isFinite(model.result.errorRatioT)
       ? (1 - model.result.errorRatioT) * 100
       : NaN;
-  // Innovation coverage: share of temperature innovations inside the expected
-  // 2-sigma envelope. Display arithmetic over recorded diagnostics.
+  const reductionP =
+    model.result && Number.isFinite(model.result.errorRatioP)
+      ? (1 - model.result.errorRatioP) * 100
+      : NaN;
   const coverageCycles = model.result?.cycles.filter(
     (c) => c.innovT !== null && c.innovStdT !== null && c.innovStdT > 0,
   ) ?? [];
@@ -119,27 +163,32 @@ export function TwinView({
       ? coverageCycles.filter((c) => Math.abs(c.innovT!) <= 2 * c.innovStdT!).length /
         coverageCycles.length
       : NaN;
+  const updatedCycles = model.result?.cycles.filter((c) => c.channelsUsed.length > 0) ?? [];
+  const latestUpdate = [...updatedCycles].reverse()[0] ?? null;
+  const truthFinal = model.result?.truth[model.result.truth.length - 1];
+  const estimatedFinal = model.result?.posteriorMean[model.result.posteriorMean.length - 1];
+  const temperatureDiag = model.obs?.diagnostics.find((d) => d.channel === 'temperatureC');
+  const pressureDiag = model.obs?.diagnostics.find((d) => d.channel === 'pressureBar');
+  const generationDiag = model.obs?.diagnostics.find((d) => d.channel === 'generationMWe');
+  const channelLabel = (channel: 'temperatureC' | 'pressureBar'): string =>
+    channel === 'temperatureC' ? 'T' : 'p';
+  const coverageText = (diag?: telemetry.ChannelDiagnostics): string =>
+    diag && diag.n > 0 ? `${formatNumber((diag.nOk / diag.n) * 100, 1)}% usable` : 'No record';
+  const forecastEnd = model.forecast?.deterministic.states[model.forecast.deterministic.states.length - 1];
+  const branchYear = estimatedFinal?.timeYears ?? NaN;
 
   return (
-    <div className="stack">
-      <div className="panel">
-        <h2>Digital-twin prototype</h2>
-        <p className="panel__intro">
-          Hidden truth → synthetic telemetry → ensemble forecast → EnKF update → new
-          forecast. The truth runs at most-likely parameters; the ensemble samples full
-          parameter uncertainty <em>plus</em> an intentional initial-temperature bias,
-          then yearly wellhead readings pull it back. A parallel free run (no
-          assimilation) is the control — the experiment succeeds when the posterior
-          tracks truth better than the free forecast. Reduced-order synthetic
-          prototype, not a production estimator (assimilation version{' '}
-          {assimilation.ASSIMILATION_VERSION}).
-        </p>
-        <p className="note">
-          State vector is [temperature, pressure, fluid mass]; energy and generation
-          are rebuilt from the posterior, never estimated. Generation readings are
-          shown but not assimilated — folding the same rate information back through
-          a nonlinear operator would add opacity for no gain.
-        </p>
+    <div className="control-room">
+      <div className="panel control-room__header">
+        <div>
+          <h2>Reservoir control room</h2>
+          <p className="panel__intro">
+            A synthetic validation twin: biased estimates are corrected with noisy
+            wellhead observations, then the latest estimate starts a ten-year
+            operating forecast. Truth is retained only to score the estimator.
+          </p>
+        </div>
+        <p className="note">Synthetic twin · seed {seed} · reduced-order model</p>
       </div>
 
       <div className="panel">
@@ -209,121 +258,304 @@ export function TwinView({
             {busy ? 'Recomputing…' : ''}
           </span>
         </div>
-        <p className="note">
-          Seed {seed} · deterministic — same seed reproduces truth, telemetry, filter
-          noise and the free-run control exactly.
-        </p>
       </div>
 
-      {model.error || !model.result || !last ? (
+      {model.error || !model.result || !last || !truthFinal || !estimatedFinal ? (
         <div className="alert" role="alert">
           <strong>The twin experiment could not run.</strong>
           <p>{model.error ?? 'No result to display.'}</p>
         </div>
       ) : (
         <main className={busy ? 'is-stale' : undefined}>
-          <dl className="tiles">
-            <div className="tile">
-              <dt>Final T error: posterior</dt>
-              <dd><span className="tile__value tabular">{formatNumber(last.postErrT, 2)}</span><span className="tile__unit">°C</span></dd>
-              <p className="tile__note">Free run: {formatNumber(last.freeErrT, 2)} °C</p>
-            </div>
-            <div className="tile">
-              <dt>Error reduction (T)</dt>
-              <dd><span className="tile__value tabular">{formatNumber(reductionT, 1)}</span><span className="tile__unit">%</span></dd>
-              <p className="tile__note">1 − posterior/free at final cycle</p>
-            </div>
-            <div className="tile">
-              <dt>Final p error: posterior</dt>
-              <dd><span className="tile__value tabular">{formatNumber(last.postErrP, 2)}</span><span className="tile__unit">bar</span></dd>
-              <p className="tile__note">Free run: {formatNumber(last.freeErrP, 2)} bar</p>
-            </div>
-            <div className="tile">
-              <dt>Spread T: start → end</dt>
-              <dd><span className="tile__value tabular">{formatNumber(model.result.cycles[0]!.priorSpreadT, 1)} → {formatNumber(last.postSpreadT, 2)}</span><span className="tile__unit">°C</span></dd>
-              <p className="tile__note">
-                {last.members} members active · {model.result.totalFallbacks} forecast fallbacks
+          <section aria-label="Current field status" className="status-strip">
+            <div className="status-card">
+              <h3>Estimated pressure now</h3>
+              <p className="status-card__value tabular">
+                {formatNumber(estimatedFinal.pressureBar, 1)} <span>bar</span>
+              </p>
+              <p className="status-card__meta">
+                Hidden truth {formatNumber(truthFinal.pressureBar, 1)} bar · estimation
+                improvement {formatNumber(reductionP, 1)}%
               </p>
             </div>
-            <div className="tile">
-              <dt>Innovations within 2σ</dt>
-              <dd><span className="tile__value tabular">{formatNumber(coverage * 100, 0)}</span><span className="tile__unit">%</span></dd>
-              <p className="tile__note">
-                {coverageCycles.length} checked cycles · {model.result.analysisSkipped} skipped analyses
+            <div className="status-card">
+              <h3>Estimated temperature now</h3>
+              <p className="status-card__value tabular">
+                {formatNumber(estimatedFinal.temperatureC, 1)} <span>°C</span>
+              </p>
+              <p className="status-card__meta">
+                Hidden truth {formatNumber(truthFinal.temperatureC, 1)} °C ·
+                improvement {formatNumber(reductionT, 1)}%
               </p>
             </div>
-          </dl>
+            <div className="status-card">
+              <h3>Estimated generation now</h3>
+              <p className="status-card__value tabular">
+                {formatNumber(estimatedFinal.capacityMweInstant, 2)} <span>MWe</span>
+              </p>
+              <p className="status-card__meta">
+                Rebuilt from estimated T/p, not directly estimated
+              </p>
+            </div>
+            <div className="status-card">
+              <h3>Production now</h3>
+              <p className="status-card__value tabular">
+                {formatNumber(deferred.productionKgS, 1)} <span>kg/s</span>
+              </p>
+              <p className="status-card__meta">Operating setpoint, not a measurement</p>
+            </div>
+            <div className="status-card">
+              <h3>Injection now</h3>
+              <p className="status-card__value tabular">
+                {formatNumber(deferred.injectionKgS, 1)} <span>kg/s</span>
+              </p>
+              <p className="status-card__meta">Operating setpoint, not a measurement</p>
+            </div>
+            <div className="status-card">
+              <h3>Estimate uncertainty</h3>
+              <p className="status-card__value tabular">
+                ±{formatNumber(last.postSpreadT, 2)} <span>°C</span>
+              </p>
+              <p className="status-card__meta">
+                Temperature ensemble spread · {last.members} active members, not calibrated confidence
+              </p>
+            </div>
+            <div className="status-card">
+              <h3>Assimilation status</h3>
+              <p className="status-card__value">
+                {latestUpdate ? `Updated · year ${formatNumber(latestUpdate.timeYears, 1)}` : 'No updates'}
+              </p>
+              <p className="status-card__meta">
+                {latestUpdate
+                  ? `Used ${latestUpdate.channelsUsed.map(channelLabel).join(' + ')} · ${updatedCycles.length} updates`
+                  : `${model.result.analysisSkipped} skipped analyses`}
+              </p>
+            </div>
+          </section>
+
+          <div className="panel">
+            <h2>Updated forecast from the latest estimate</h2>
+            {model.forecast && forecastEnd ? (
+              <>
+                <dl className="tiles">
+                  <div className="tile">
+                    <dt>Forecast generation, +{FORECAST_YEARS} years</dt>
+                    <dd>
+                      <span className="tile__value tabular">
+                        {formatNumber(forecastEnd.capacityMweInstant, 2)}
+                      </span>
+                      <span className="tile__unit">MWe</span>
+                    </dd>
+                    <p className="tile__note">
+                      Current rates held · {model.forecast.rejected} depleted members excluded
+                    </p>
+                  </div>
+                  <div className="tile">
+                    <dt>Forecast pressure, +{FORECAST_YEARS} years</dt>
+                    <dd>
+                      <span className="tile__value tabular">
+                        {formatNumber(forecastEnd.pressureBar, 1)}
+                      </span>
+                      <span className="tile__unit">bar</span>
+                    </dd>
+                    <p className="tile__note">
+                      {model.forecast.deterministic.truncated
+                        ? `Stopped early: ${model.forecast.deterministic.stopReason ?? 'depletion'}`
+                        : `Branches at year ${formatNumber(branchYear, 1)}`}
+                    </p>
+                  </div>
+                </dl>
+                <div className="grid-2">
+                  <TimeSeriesChart
+                    title="Generation history and updated forecast"
+                    yLabel="Capacity (MWe)"
+                    currentTime={branchYear}
+                    lines={[
+                      { label: 'Hidden true state', role: 'truth', points: seriesOf(model.result.truth, (s) => s.capacityMweInstant) },
+                      { label: 'Observed telemetry', role: 'observation', points: obsSeries('generationMWe') },
+                      { label: 'Posterior mean (estimate)', role: 'estimate', points: seriesOf(model.result.posteriorMean, (s) => s.capacityMweInstant) },
+                      { label: 'Updated forecast', role: 'forecast', points: seriesOf(model.forecast.deterministic.states, (s) => s.capacityMweInstant) },
+                    ]}
+                    band={{ label: 'Updated forecast', points: model.forecast.bands.generationMWe }}
+                    caption={`History ends at year ${formatNumber(branchYear, 1)}; the dashed line continues under current operating rates. The shaded range is parameter-only P10–P90 uncertainty.`}
+                  />
+                  <TimeSeriesChart
+                    title="Pressure history and updated forecast"
+                    yLabel="Pressure (bar)"
+                    currentTime={branchYear}
+                    lines={[
+                      { label: 'Hidden true state', role: 'truth', points: seriesOf(model.result.truth, (s) => s.pressureBar) },
+                      { label: 'Observed telemetry', role: 'observation', points: obsSeries('pressureBar') },
+                      { label: 'Posterior mean (estimate)', role: 'estimate', points: seriesOf(model.result.posteriorMean, (s) => s.pressureBar) },
+                      { label: 'Updated forecast', role: 'forecast', points: seriesOf(model.forecast.deterministic.states, (s) => s.pressureBar) },
+                    ]}
+                    band={{ label: 'Updated forecast', points: model.forecast.bands.pressureBar }}
+                    digits={1}
+                    caption="The vertical marker is the forecast branch point. Uncertainty excludes posterior-state, model and control errors."
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="note">
+                The historical twin below remains valid. {model.forecastError ?? 'No forecast available.'}
+              </p>
+            )}
+          </div>
 
           <div className="grid-2">
             <TimeSeriesChart
-              title="Temperature: truth, forecast, posterior"
+              title="Temperature: hidden truth, observations and estimate"
               yLabel="Temperature (°C)"
               lines={[
-                { label: 'True state', points: model.result.truth.map((s) => ({ t: s.timeYears, value: s.temperatureC })) },
-                { label: 'Free forecast mean', points: model.result.freeMean.map((s) => ({ t: s.timeYears, value: s.temperatureC })) },
-                { label: 'Posterior mean', points: model.result.posteriorMean.map((s) => ({ t: s.timeYears, value: s.temperatureC })) },
-                { label: 'Observations', points: obsSeries('temperatureC') },
+                { label: 'Hidden true state', role: 'truth', points: model.result.truth.map((s) => ({ t: s.timeYears, value: s.temperatureC })) },
+                { label: 'Observed telemetry', role: 'observation', points: obsSeries('temperatureC') },
+                { label: 'Posterior mean (estimate)', role: 'estimate', points: model.result.posteriorMean.map((s) => ({ t: s.timeYears, value: s.temperatureC })) },
+                { label: 'No-assimilation control', role: 'reference', points: model.result.freeMean.map((s) => ({ t: s.timeYears, value: s.temperatureC })) },
               ]}
               digits={1}
-              caption="Yearly noisy wellhead readings drag the biased ensemble back to the hidden truth; the free run keeps its bias."
+              caption="Noisy wellhead readings pull the intentionally biased estimate toward hidden truth. The grey control keeps its bias."
             />
             <TimeSeriesChart
-              title="Pressure: truth, forecast, posterior"
+              title="Pressure: hidden truth, observations and estimate"
               yLabel="Pressure (bar)"
               lines={[
-                { label: 'True state', points: model.result.truth.map((s) => ({ t: s.timeYears, value: s.pressureBar })) },
-                { label: 'Free forecast mean', points: model.result.freeMean.map((s) => ({ t: s.timeYears, value: s.pressureBar })) },
-                { label: 'Posterior mean', points: model.result.posteriorMean.map((s) => ({ t: s.timeYears, value: s.pressureBar })) },
-                { label: 'Observations', points: obsSeries('pressureBar') },
+                { label: 'Hidden true state', role: 'truth', points: model.result.truth.map((s) => ({ t: s.timeYears, value: s.pressureBar })) },
+                { label: 'Observed telemetry', role: 'observation', points: obsSeries('pressureBar') },
+                { label: 'Posterior mean (estimate)', role: 'estimate', points: model.result.posteriorMean.map((s) => ({ t: s.timeYears, value: s.pressureBar })) },
+                { label: 'No-assimilation control', role: 'reference', points: model.result.freeMean.map((s) => ({ t: s.timeYears, value: s.pressureBar })) },
               ]}
               digits={1}
-              caption="Pressure is corrected mostly through its covariance with temperature and mass — it has its own readings too."
+              caption="Pressure is corrected through its covariance with temperature and mass, plus its own observations."
             />
           </div>
+
+          <div className="panel">
+            <h2>Latest assimilation update</h2>
+            <div className="table-scroll">
+              <table className="data-table">
+                <caption className="visually-hidden">Estimation improvement at the latest update</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Check</th>
+                    <th scope="col" className="numeric">Before update</th>
+                    <th scope="col" className="numeric">After update</th>
+                    <th scope="col" className="numeric">No-assimilation control</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Temperature estimation error (°C)</th>
+                    <td className="numeric tabular">{formatNumber(last.priorErrT, 2)}</td>
+                    <td className="numeric tabular">{formatNumber(last.postErrT, 2)}</td>
+                    <td className="numeric tabular">{formatNumber(last.freeErrT, 2)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Pressure estimation error (bar)</th>
+                    <td className="numeric tabular">{formatNumber(last.priorErrP, 2)}</td>
+                    <td className="numeric tabular">{formatNumber(last.postErrP, 2)}</td>
+                    <td className="numeric tabular">{formatNumber(last.freeErrP, 2)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Temperature ensemble spread (°C)</th>
+                    <td className="numeric tabular">{formatNumber(last.priorSpreadT, 2)}</td>
+                    <td className="numeric tabular">{formatNumber(last.postSpreadT, 2)}</td>
+                    <td className="numeric tabular">—</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="note">
+              Smaller after-update errors mean observations improved this estimate.
+              Spread measures ensemble disagreement, not the probability that the
+              estimate is correct. Residual coverage below is a consistency check,
+              not another confidence score.
+            </p>
+          </div>
+
           <div className="grid-2">
             <TimeSeriesChart
-              title="Generation: prediction vs observation vs posterior"
-              yLabel="Capacity (MWe)"
-              lines={[
-                { label: 'True state', points: model.result.truth.map((s) => ({ t: s.timeYears, value: s.capacityMweInstant })) },
-                { label: 'Free forecast mean', points: model.result.freeMean.map((s) => ({ t: s.timeYears, value: s.capacityMweInstant })) },
-                { label: 'Posterior mean', points: model.result.posteriorMean.map((s) => ({ t: s.timeYears, value: s.capacityMweInstant })) },
-                { label: 'Observations', points: obsSeries('generationMWe') },
-              ]}
-              caption="Diagnostic only: generation is rebuilt from each estimated state, never assimilated. Observation gaps read as breaks."
-            />
-            <TimeSeriesChart
-              title="Mean absolute error over cycles"
+              title="Estimation error over time"
               yLabel="Error (°C)"
               lines={[
-                { label: 'Prior (pre-analysis)', points: cycleLine((c) => c.priorErrT) },
-                { label: 'Posterior', points: cycleLine((c) => c.postErrT) },
-                { label: 'Free run', points: cycleLine((c) => c.freeErrT) },
+                { label: 'Forecast before update', role: 'forecast', points: cycleLine((c) => c.priorErrT) },
+                { label: 'Estimate after update', role: 'estimate', points: cycleLine((c) => c.postErrT) },
+                { label: 'No-assimilation control', role: 'reference', points: cycleLine((c) => c.freeErrT) },
               ]}
               digits={1}
-              caption="Ensemble-mean error against truth at each cycle. The posterior sawtooth — forecast drift, then correction — is the filter working."
+              caption="The sawtooth of forecast drift followed by correction is normal filter behaviour."
+            />
+            <TimeSeriesChart
+              title="Temperature residuals against the expected range"
+              yLabel="Residual (°C)"
+              lines={[
+                { label: 'Observed − forecast residual', role: 'observation', points: cycleLine((c) => c.innovT) },
+                { label: '+2σ expected', role: 'reference', points: cycleLine((c) => (c.innovStdT === null ? null : 2 * c.innovStdT)) },
+                { label: '−2σ expected', role: 'reference', points: cycleLine((c) => (c.innovStdT === null ? null : -2 * c.innovStdT)) },
+              ]}
+              digits={1}
+              caption={`${formatNumber(coverage * 100, 0)}% of checked residuals fall inside ±2σ. Persistent excursions would indicate overconfidence.`}
             />
           </div>
-          <TimeSeriesChart
-            title="Temperature innovation vs expected envelope"
-            yLabel="Innovation (°C)"
-            lines={[
-              { label: 'Innovation (obs − prior)', points: cycleLine((c) => c.innovT) },
-              { label: '+2σ expected', points: cycleLine((c) => (c.innovStdT === null ? null : 2 * c.innovStdT)) },
-              { label: '−2σ expected', points: cycleLine((c) => (c.innovStdT === null ? null : -2 * c.innovStdT)) },
-            ]}
-            digits={1}
-            caption="Residual the filter actually saw, against the spread it expected. Mostly inside the envelope means the uncertainty is honest; persistent excursions would mean overconfidence."
-          />
 
-          <p className="note">
-            {model.result.cycles.length - 1} assimilation cycles · seed {model.result.seed} ·
-            model v{model.result.modelVersion} / dynamics v{model.result.dynamicsVersion} /
-            assimilation v{model.result.assimilationVersion} ·{' '}
-            {model.result.rejectedAssimilated + model.result.rejectedFree} exhausted members
-            dropped across both runs · {model.result.analysisSkipped} skipped analyses ·{' '}
-            missing readings skipped per cycle.
-          </p>
+          <div className="panel">
+            <h2>Observation quality</h2>
+            <div className="table-scroll">
+              <table className="data-table">
+                <caption className="visually-hidden">Telemetry usability and accuracy</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Channel</th>
+                    <th scope="col" className="numeric">Usable share</th>
+                    <th scope="col" className="numeric">Missing</th>
+                    <th scope="col" className="numeric">Rejected</th>
+                    <th scope="col" className="numeric">RMSE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { label: 'Temperature (°C)', diag: temperatureDiag },
+                    { label: 'Pressure (bar)', diag: pressureDiag },
+                    { label: 'Generation (MWe)', diag: generationDiag },
+                  ].map((row) => (
+                    <tr key={row.label}>
+                      <th scope="row">{row.label}</th>
+                      <td className="numeric tabular">{coverageText(row.diag)}</td>
+                      <td className="numeric tabular">{row.diag ? row.diag.nMissing : '—'}</td>
+                      <td className="numeric tabular">{row.diag ? row.diag.nRejected : '—'}</td>
+                      <td className="numeric tabular">
+                        {row.diag?.rmse === null || row.diag?.rmse === undefined
+                          ? '—'
+                          : formatNumber(row.diag.rmse, 2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="note">
+              Generation is displayed but not assimilated. Missing readings are
+              skipped by cycle; rejected readings never enter the estimator.
+            </p>
+          </div>
+
+          <details className="method-details">
+            <summary>How this validation experiment works</summary>
+            <p>
+              Hidden truth uses most-likely parameters. Ensemble members sample
+              full parameter uncertainty and start {formatNumber(deferred.biasC, 1)} °C
+              too warm. Wellhead temperature and pressure observations correct the
+              [temperature, pressure, fluid-mass] state; energy and generation are
+              rebuilt from each posterior with the forward model. Seed {seed} makes
+              truth, telemetry and filter noise exactly reproducible.
+            </p>
+            <p className="note">
+              Model v{model.result.modelVersion} · dynamics v{model.result.dynamicsVersion} ·
+              assimilation v{model.result.assimilationVersion} ·{' '}
+              {model.result.rejectedAssimilated + model.result.rejectedFree} exhausted
+              members dropped · {model.result.totalFallbacks} forecast fallbacks ·{' '}
+              {model.result.analysisSkipped} skipped analyses.
+            </p>
+          </details>
         </main>
       )}
     </div>

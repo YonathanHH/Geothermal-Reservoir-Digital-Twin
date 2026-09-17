@@ -322,6 +322,13 @@ are the boundary it will use.
 colour, not a solved field. Grid–well agreement holds to the smoothness
 bound the tests assert; nothing finer should be claimed.
 
+**Map colour is display normalization, not physics.** Fixed reservoir-grid
+domains span all displayed times and both sources; injector markers may be
+clamped at the reservoir-scale endpoint because they report injection
+temperature. Deviation views subtract recorded bulk values to make the small
+simulated signal readable. These choices change legibility only: no spatial
+value, trajectory or observation is recalculated.
+
 ## 15. Operational forecasting (Phase 4)
 
 Section 15 of `MODEL_SPEC.md` interprets model outputs; it adds no physics.

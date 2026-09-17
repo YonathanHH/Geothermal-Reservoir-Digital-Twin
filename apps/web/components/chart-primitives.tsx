@@ -189,12 +189,39 @@ export function ChartFrame({ title, caption, description, children, actions }: C
 }
 
 /** Legend swatch row. Present whenever two or more series share a plot. */
-export function Legend({ items }: { items: { label: string; color: string }[] }) {
+export interface LegendItem {
+  label: string;
+  color: string;
+  /** Solid lines are model trajectories; dashed lines are forecasts or controls. */
+  lineStyle?: 'solid' | 'dashed' | 'marker';
+}
+
+export function Legend({ items }: { items: LegendItem[] }) {
   return (
     <ul className="legend">
       {items.map((item) => (
         <li key={item.label}>
-          <span className="legend__swatch" style={{ background: item.color }} aria-hidden="true" />
+          <span
+            className="legend__swatch"
+            style={
+              item.lineStyle === 'marker'
+                ? {
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    border: `2px solid ${item.color}`,
+                    background: 'var(--surface)',
+                  }
+                : item.lineStyle === 'dashed'
+                  ? {
+                      height: 3,
+                      borderRadius: 2,
+                      background: `repeating-linear-gradient(90deg, ${item.color} 0 5px, transparent 5px 8px)`,
+                    }
+                  : { background: item.color }
+            }
+            aria-hidden="true"
+          />
           {item.label}
         </li>
       ))}

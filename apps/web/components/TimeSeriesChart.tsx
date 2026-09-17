@@ -7,9 +7,32 @@ const WIDTH = 620;
 const HEIGHT = 300;
 const LINE_COLORS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)'];
 const BAND_FILL = 'var(--series-1)';
+const ROLE_STYLES: Record<TimeSeriesRole, { color: string; dash?: string; marker: boolean }> = {
+  truth: { color: 'var(--series-1)', marker: false },
+  observation: { color: 'var(--series-4)', dash: '2 4', marker: true },
+  estimate: { color: 'var(--series-3)', marker: false },
+  forecast: { color: 'var(--series-2)', dash: '7 4', marker: false },
+  reference: { color: 'var(--text-muted)', dash: '4 4', marker: false },
+};
+
+function styleFor(
+  line: TimeSeriesLine,
+  index: number,
+): { color: string; dash?: string; marker: boolean; role?: TimeSeriesRole } {
+  if (!line.role) return { color: LINE_COLORS[index % LINE_COLORS.length]!, marker: false };
+  return { ...ROLE_STYLES[line.role], role: line.role };
+}
+
+export type TimeSeriesRole = 'truth' | 'observation' | 'estimate' | 'forecast' | 'reference';
 
 export interface TimeSeriesLine {
   label: string;
+  /**
+   * Semantic role controls colour and line treatment: blue truth, marked
+   * observations, green estimates, dashed orange forecasts, muted references.
+   * Lines without a role keep the legacy categorical order.
+   */
+  role?: TimeSeriesRole;
   /** Points in ascending time order. `null` values are gaps: the path breaks. */
   points: { t: number; value: number | null }[];
 }
@@ -38,6 +61,7 @@ export function TimeSeriesChart({
   digits = 2,
   caption,
   description,
+  currentTime,
 }: {
   title: string;
   xLabel?: string;
@@ -47,6 +71,8 @@ export function TimeSeriesChart({
   digits?: number;
   caption?: React.ReactNode;
   description?: string;
+  /** Optional vertical time cursor synchronized with maps and tables. */
+  currentTime?: number;
 }) {
   const allT = [...lines.flatMap((l) => l.points.map((p) => p.t)), ...(band?.points.map((p) => p.t) ?? [])];
   const allV = [
@@ -92,9 +118,18 @@ export function TimeSeriesChart({
       lines.map((l) => `${l.label} ends at ${formatNumber(l.points.at(-1)?.value ?? NaN, digits)}`).join('. ');
 
   const legendItems = [
-    ...lines.map((l, i) => ({ label: l.label, color: LINE_COLORS[i % LINE_COLORS.length]! })),
-    ...(band ? [{ label: `${band.label} P10–P90 ensemble range`, color: BAND_FILL }] : []),
+    ...lines.map((l, i) => {
+      const style = styleFor(l, i);
+      return {
+        label: l.label,
+        color: style.color,
+        lineStyle: (style.marker ? 'marker' : style.dash ? 'dashed' : 'solid') as 'marker' | 'dashed' | 'solid',
+      };
+    }),
+    ...(band ? [{ label: `${band.label} P10–P90 ensemble range`, color: BAND_FILL, lineStyle: 'solid' as const }] : []),
   ];
+  const showCursor =
+    currentTime !== undefined && Number.isFinite(currentTime) && currentTime >= 0 && currentTime <= tMax;
 
   return (
     <ChartFrame
@@ -116,6 +151,18 @@ export function TimeSeriesChart({
           formatX={(v) => formatNumber(v, 0)}
           formatY={(v) => formatNumber(v, digits)}
         />
+        {showCursor ? (
+          <line
+            x1={x(currentTime!)}
+            x2={x(currentTime!)}
+            y1={PLOT_MARGIN.top}
+            y2={HEIGHT - PLOT_MARGIN.bottom}
+            stroke="var(--border-strong)"
+            strokeWidth={1.5}
+            strokeDasharray="5 4"
+            aria-hidden="true"
+          />
+        ) : null}
         {band ? (
           <path
             d={
@@ -140,18 +187,40 @@ export function TimeSeriesChart({
             <title>{`${band.label} median (P50)`}</title>
           </path>
         ) : null}
-        {lines.map((l, i) => (
-          <path
-            key={l.label}
-            d={line(l.points)}
-            fill="none"
-            stroke={LINE_COLORS[i % LINE_COLORS.length]!}
-            strokeWidth={2}
-            strokeLinejoin="round"
-          >
-            <title>{`${l.label}: ${formatNumber(l.points.at(-1)?.value ?? NaN, digits)} at year ${formatNumber(tMax, 0)}`}</title>
-          </path>
-        ))}
+        {lines.map((l, i) => {
+          const style = styleFor(l, i);
+          return (
+            <g key={l.label}>
+              <path
+                d={line(l.points)}
+                fill="none"
+                stroke={style.color}
+                strokeWidth={style.role === 'reference' ? 1.5 : 2}
+                strokeDasharray={style.dash}
+                strokeLinejoin="round"
+                opacity={style.role === 'reference' ? 0.85 : 1}
+              >
+                <title>{`${l.label}: ${formatNumber(l.points.at(-1)?.value ?? NaN, digits)} at year ${formatNumber(tMax, 0)}`}</title>
+              </path>
+              {style.marker
+                ? l.points.map((p, j) =>
+                    p.value === null ? null : (
+                      <circle
+                        key={`${l.label}-${j}`}
+                        cx={x(p.t)}
+                        cy={y(p.value)}
+                        r={2.4}
+                        fill="var(--surface)"
+                        stroke={style.color}
+                        strokeWidth={1.5}
+                        aria-hidden="true"
+                      />
+                    ),
+                  )
+                : null}
+            </g>
+          );
+        })}
       </svg>
     </ChartFrame>
   );

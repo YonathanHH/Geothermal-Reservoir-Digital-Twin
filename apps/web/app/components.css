@@ -516,3 +516,221 @@ main.is-stale {
   text-align: center;
   color: var(--text-muted);
 }
+
+/* --- control rooms ------------------------------------------------------- */
+
+.control-room {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.control-room__header {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  gap: var(--space-3);
+}
+
+.status-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.status-card h3 {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.status-card__value {
+  font-size: 1.45rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.status-card__value span {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.status-card__meta {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+.method-details {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.method-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.timeline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.timeline__slider {
+  flex: 1 1 14rem;
+  min-width: 12rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.timeline__slider input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.timeline__readout {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.map-workspace {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .map-workspace {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  }
+}
+
+.map-stage svg text {
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3px;
+}
+
+.map-legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.map-legend__ramp {
+  height: 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.map-legend__ticks {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.well-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.well-key li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.well-key__glyph--production {
+  color: var(--series-2);
+}
+
+.well-key__glyph--injection {
+  color: var(--series-1);
+}
+
+.well-key__glyph--observation {
+  color: var(--text-secondary);
+}
+
+.quality-badge {
+  display: inline-block;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 0 var(--space-2);
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.quality-badge--ok {
+  color: var(--good);
+  border-color: var(--good);
+}
+
+.quality-badge--missing {
+  color: var(--series-4);
+  border-color: var(--series-4);
+}
+
+.quality-badge--rejected {
+  color: var(--critical);
+  border-color: var(--critical);
+}
+
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.data-table tr.is-selected th,
+.data-table tr.is-selected td {
+  background: var(--surface-sunken);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.well-select {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.well-select:hover {
+  text-decoration: underline;
+}

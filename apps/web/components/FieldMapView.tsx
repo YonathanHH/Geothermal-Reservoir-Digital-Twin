@@ -1,6 +1,6 @@
 'use client';
 
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   assimilation,
   dynamics,
@@ -13,15 +13,66 @@ import { TimeSeriesChart } from './TimeSeriesChart';
 import { formatNumber } from '../lib/format';
 
 const ENSEMBLE_OPTIONS = [25, 50, 100];
-const GRID_NX = 28;
-const GRID_NY = 22;
-const MAP_W = 660;
-const MAP_H = 470;
-const MAP_PAD = 30;
+const GRID_NX = 44;
+const GRID_NY = 34;
+const MAP_W = 720;
+const MAP_H = 500;
+const MAP_PAD = 34;
 
-// Sequential color ramps (light → dark). Stops as [r, g, b].
+// Fixed sequential reservoir ramps (light → dark). Stops as [r, g, b].
 const RAMP_T: [number, number, number][] = [[255, 247, 224], [253, 184, 99], [215, 48, 31]];
 const RAMP_P: [number, number, number][] = [[235, 246, 255], [107, 174, 214], [8, 81, 156]];
+const DIVERGE_NEG: [number, number, number] = [42, 120, 214];
+const DIVERGE_MID: [number, number, number] = [242, 241, 237];
+const DIVERGE_POS: [number, number, number] = [235, 104, 52];
+
+type DisplayId = 'temperature' | 'pressure' | 'pressure-deviation' | 'cooling';
+
+const DISPLAYS: {
+  id: DisplayId;
+  variable: 'temperatureC' | 'pressureBar';
+  mode: 'absolute' | 'deviation';
+  label: string;
+  unit: string;
+  explanation: string;
+}[] = [
+  {
+    id: 'temperature',
+    variable: 'temperatureC',
+    mode: 'absolute',
+    label: 'Reservoir temperature, absolute (°C)',
+    unit: '°C',
+    explanation: 'Bulk thermal history plus local injector cooling.',
+  },
+  {
+    id: 'pressure',
+    variable: 'pressureBar',
+    mode: 'absolute',
+    label: 'Reservoir pressure, absolute (bar)',
+    unit: 'bar',
+    explanation: 'Bulk depletion plus local production and injection cones.',
+  },
+  {
+    id: 'pressure-deviation',
+    variable: 'pressureBar',
+    mode: 'deviation',
+    label: 'Pressure deviation from bulk (bar)',
+    unit: 'bar',
+    explanation: 'Negative: production drawdown. Positive: injection support.',
+  },
+  {
+    id: 'cooling',
+    variable: 'temperatureC',
+    mode: 'deviation',
+    label: 'Local cooling relative to bulk (°C)',
+    unit: '°C',
+    explanation: 'Positive values are locally cooler than bulk reservoir fluid.',
+  },
+];
+
+function mixChannel(a: number, b: number, f: number): number {
+  return Math.round(a + (b - a) * f);
+}
 
 function rampColor(stops: [number, number, number][], t: number): string {
   const clamped = Math.min(1, Math.max(0, t));
@@ -29,18 +80,27 @@ function rampColor(stops: [number, number, number][], t: number): string {
   const f = clamped * (stops.length - 1) - seg;
   const a = stops[seg]!;
   const b = stops[seg + 1]!;
-  const mix = (i: 0 | 1 | 2): number => Math.round(a[i] + (b[i] - a[i]) * f);
-  return `rgb(${mix(0)}, ${mix(1)}, ${mix(2)})`;
+  return `rgb(${mixChannel(a[0], b[0], f)}, ${mixChannel(a[1], b[1], f)}, ${mixChannel(a[2], b[2], f)})`;
+}
+
+function divergingColor(t: number): string {
+  const clamped = Math.min(1, Math.max(0, t));
+  if (clamped < 0.5) {
+    const f = clamped / 0.5;
+    return `rgb(${mixChannel(DIVERGE_NEG[0], DIVERGE_MID[0], f)}, ${mixChannel(DIVERGE_NEG[1], DIVERGE_MID[1], f)}, ${mixChannel(DIVERGE_NEG[2], DIVERGE_MID[2], f)})`;
+  }
+  const f = (clamped - 0.5) / 0.5;
+  return `rgb(${mixChannel(DIVERGE_MID[0], DIVERGE_POS[0], f)}, ${mixChannel(DIVERGE_MID[1], DIVERGE_POS[1], f)}, ${mixChannel(DIVERGE_MID[2], DIVERGE_POS[2], f)})`;
 }
 
 /**
  * Field map workspace (Phase 3).
  *
- * A thin shell over `core/src/spatial` + `core/src/assimilation`: one twin
- * run gives truth and posterior-mean bulk trajectories, the spatial layer
- * disaggregates both onto wells and a plan-view grid, and wellhead
- * surveillance is observed per cycle. Display slicing only — no physics,
- * no filtering math in this file.
+ * A thin shell over core spatial, assimilation and surveillance records. Twin
+ * bulk trajectories are disaggregated once and cached for every cycle and both
+ * sources; the slider, source, display and well selectors only choose slices.
+ * Deviation displays subtract recorded bulk values for readability and do not
+ * recalculate reservoir physics.
  */
 export function FieldMapView({
   parameters,
@@ -51,9 +111,11 @@ export function FieldMapView({
 }) {
   const [ensembleN, setEnsembleN] = useState(50);
   const [cycleIdx, setCycleIdx] = useState(30);
-  const [layer, setLayer] = useState<'temperatureC' | 'pressureBar'>('temperatureC');
+  const [displayId, setDisplayId] = useState<DisplayId>('temperature');
   const [source, setSource] = useState<'estimated' | 'true'>('estimated');
   const [selectedWell, setSelectedWell] = useState<string>('P-01');
+  const [showQuality, setShowQuality] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const deferred = useDeferredValue({ parameters, seed, ensembleN });
   const busy =
@@ -79,7 +141,6 @@ export function FieldMapView({
         return { productionKgS: c.productionKgS, injectionKgS: c.injectionKgS, injectionTemperatureC: c.injectionTemperatureC };
       };
       const params = { ...spatial.DEFAULT_SPATIAL_PARAMS };
-      // Per-cycle snapshots for truth and posterior-mean bulk states.
       const truthSnapshots = result.cycles.map((c) =>
         spatial.wellConditions(
           { temperatureC: c.truthT, pressureBar: c.truthP },
@@ -100,7 +161,6 @@ export function FieldMapView({
           c.timeYears,
         ),
       );
-      // Wellhead surveillance on the truth snapshots, one observation per cycle.
       const sensors = {
         temperatureC: { ...telemetry.DEFAULT_TELEMETRY_CONFIG.channels.temperatureC },
         pressureBar: { ...telemetry.DEFAULT_TELEMETRY_CONFIG.channels.pressureBar },
@@ -115,22 +175,142 @@ export function FieldMapView({
           result.cycles[i]!.timeYears,
         ),
       );
-      return { result, layout, schedule, params, truthSnapshots, estSnapshots, obsByCycle, error: null as string | null };
+      const truthBulk = result.cycles.map((c) => ({
+        temperatureC: c.truthT,
+        pressureBar: c.truthP,
+        timeYears: c.timeYears,
+      }));
+      const estBulk = result.cycles.map((c) => ({
+        temperatureC: c.postMeanT,
+        pressureBar: c.postMeanP,
+        timeYears: c.timeYears,
+      }));
+      const trueGrids = result.cycles.map((c) =>
+        spatial.fieldGrid(
+          { temperatureC: c.truthT, pressureBar: c.truthP },
+          layout,
+          { productionKgS: schedule.controls.productionKgS, injectionKgS: schedule.controls.injectionKgS },
+          schedule.controls.injectionTemperatureC,
+          params,
+          GRID_NX,
+          GRID_NY,
+        ),
+      );
+      const estGrids = result.cycles.map((c) =>
+        spatial.fieldGrid(
+          { temperatureC: c.postMeanT, pressureBar: c.postMeanP },
+          layout,
+          { productionKgS: schedule.controls.productionKgS, injectionKgS: schedule.controls.injectionKgS },
+          schedule.controls.injectionTemperatureC,
+          params,
+          GRID_NX,
+          GRID_NY,
+        ),
+      );
+
+      // Fixed display domains from recorded reservoir-grid cells, not well
+      // markers. Injector markers can sit at injection temperature; including
+      // them would compress the reservoir-scale contrast.
+      let tempLo = Number.POSITIVE_INFINITY;
+      let tempHi = Number.NEGATIVE_INFINITY;
+      let pressLo = Number.POSITIVE_INFINITY;
+      let pressHi = Number.NEGATIVE_INFINITY;
+      let pressDevAbs = 0;
+      let coolLo = Number.POSITIVE_INFINITY;
+      let coolHi = Number.NEGATIVE_INFINITY;
+      const grids: { grid: spatial.FieldCell[]; bulk: { temperatureC: number; pressureBar: number } }[] = [];
+      for (let i = 0; i < result.cycles.length; i++) {
+        grids.push({ grid: trueGrids[i]!, bulk: truthBulk[i]! });
+        grids.push({ grid: estGrids[i]!, bulk: estBulk[i]! });
+      }
+      for (const entry of grids) {
+        for (const cell of entry.grid) {
+          if (!cell.inside) continue;
+          tempLo = Math.min(tempLo, cell.temperatureC);
+          tempHi = Math.max(tempHi, cell.temperatureC);
+          pressLo = Math.min(pressLo, cell.pressureBar);
+          pressHi = Math.max(pressHi, cell.pressureBar);
+          pressDevAbs = Math.max(pressDevAbs, Math.abs(cell.pressureBar - entry.bulk.pressureBar));
+          const cooling = entry.bulk.temperatureC - cell.temperatureC;
+          coolLo = Math.min(coolLo, cooling);
+          coolHi = Math.max(coolHi, cooling);
+        }
+      }
+      return {
+        result,
+        layout,
+        schedule,
+        params,
+        controlsAt,
+        truthSnapshots,
+        estSnapshots,
+        obsByCycle,
+        truthBulk,
+        estBulk,
+        trueGrids,
+        estGrids,
+        domains: {
+          temperature: { lo: tempLo, hi: tempHi },
+          pressure: { lo: pressLo, hi: pressHi },
+          pressureDeviation: { lo: -pressDevAbs, hi: pressDevAbs },
+          cooling: { lo: coolLo, hi: coolHi },
+        },
+        error: null as string | null,
+      };
     } catch (error) {
       return {
         result: null,
         layout: null,
         schedule: null,
         params: null,
+        controlsAt: null,
         truthSnapshots: null,
         estSnapshots: null,
         obsByCycle: null,
+        truthBulk: null,
+        estBulk: null,
+        trueGrids: null,
+        estGrids: null,
+        domains: null,
         error: error instanceof Error ? error.message : 'The field map could not be built.',
       };
     }
   }, [deferred]);
 
-  if (model.error || !model.result || !model.layout || !model.truthSnapshots || !model.estSnapshots || !model.obsByCycle) {
+  const nCycles = model.result?.cycles.length ?? 0;
+  useEffect(() => {
+    if (!isPlaying || nCycles === 0) return;
+    if (cycleIdx >= nCycles - 1) {
+      setIsPlaying(false);
+      return;
+    }
+    const id = window.setInterval(() => {
+      setCycleIdx((current) => {
+        if (current >= nCycles - 1) {
+          window.clearInterval(id);
+          setIsPlaying(false);
+          return current;
+        }
+        return current + 1;
+      });
+    }, 650);
+    return () => window.clearInterval(id);
+  }, [isPlaying, nCycles, cycleIdx]);
+
+  if (
+    model.error ||
+    !model.result ||
+    !model.layout ||
+    !model.truthSnapshots ||
+    !model.estSnapshots ||
+    !model.obsByCycle ||
+    !model.truthBulk ||
+    !model.estBulk ||
+    !model.trueGrids ||
+    !model.estGrids ||
+    !model.domains ||
+    nCycles === 0
+  ) {
     return (
       <div className="stack">
         <div className="alert" role="alert">
@@ -141,37 +321,39 @@ export function FieldMapView({
     );
   }
 
-  const { result, layout, truthSnapshots, estSnapshots, obsByCycle } = model;
-  const nCycles = result.cycles.length;
+  const { result, layout, truthSnapshots, estSnapshots, obsByCycle, truthBulk, estBulk } = model;
   const ci = Math.max(0, Math.min(cycleIdx, nCycles - 1));
   const cycle = result.cycles[ci]!;
+  const display = DISPLAYS.find((d) => d.id === displayId) ?? DISPLAYS[0]!;
+  const bulk = (source === 'estimated' ? estBulk : truthBulk)[ci]!;
   const shownTruth = truthSnapshots[ci]!;
   const shownEst = estSnapshots[ci]!;
-  const shown = source === 'estimated' ? shownEst : shownTruth;
   const shownObs = obsByCycle[ci]!;
+  const grid = (source === 'estimated' ? model.estGrids : model.trueGrids)[ci]!;
+  const domain =
+    display.id === 'temperature'
+      ? model.domains.temperature
+      : display.id === 'pressure'
+        ? model.domains.pressure
+        : display.id === 'pressure-deviation'
+          ? model.domains.pressureDeviation
+          : model.domains.cooling;
+  const domainSpan = domain.hi - domain.lo || 1;
 
-  // Fixed color domains from the full run so the slider never flickers.
-  const allVals = (pick: (c: spatial.WellConditions) => number): number[] => [
-    ...truthSnapshots.flatMap((s) => s.map(pick)),
-    ...estSnapshots.flatMap((s) => s.map(pick)),
-  ];
-  const layerVals = allVals((c) => (layer === 'temperatureC' ? c.temperatureC : c.pressureBar));
-  const lo = Math.min(...layerVals);
-  const hi = Math.max(...layerVals);
-  const span = hi - lo || 1;
+  const cellDisplayValue = (cell: spatial.FieldCell): number => {
+    if (display.mode === 'absolute') {
+      return display.variable === 'temperatureC' ? cell.temperatureC : cell.pressureBar;
+    }
+    return display.variable === 'temperatureC'
+      ? bulk.temperatureC - cell.temperatureC
+      : cell.pressureBar - bulk.pressureBar;
+  };
 
-  // Heatmap grid for the displayed source at the slider step.
-  const grid = spatial.fieldGrid(
-    source === 'estimated'
-      ? { temperatureC: cycle.postMeanT, pressureBar: cycle.postMeanP }
-      : { temperatureC: cycle.truthT, pressureBar: cycle.truthP },
-    layout,
-    { productionKgS: model.schedule!.controls.productionKgS, injectionKgS: model.schedule!.controls.injectionKgS },
-    model.schedule!.controls.injectionTemperatureC,
-    model.params!,
-    GRID_NX,
-    GRID_NY,
-  );
+  const colorForDisplay = (value: number): string => {
+    const t = (value - domain.lo) / domainSpan;
+    if (display.id === 'pressure-deviation') return divergingColor(t);
+    return rampColor(display.variable === 'temperatureC' ? RAMP_T : RAMP_P, t);
+  };
 
   const scale = Math.min(
     (MAP_W - 2 * MAP_PAD) / (2 * layout.boundary.radiusXM),
@@ -181,18 +363,40 @@ export function FieldMapView({
   const py = (yM: number): number => MAP_H / 2 - yM * scale;
   const cellW = ((2 * layout.boundary.radiusXM) / (GRID_NX - 1)) * scale;
   const cellH = ((2 * layout.boundary.radiusYM) / (GRID_NY - 1)) * scale;
-  const ramp = layer === 'temperatureC' ? RAMP_T : RAMP_P;
-  const cellVal = (c: spatial.FieldCell): number =>
-    layer === 'temperatureC' ? c.temperatureC : c.pressureBar;
+  const scaleTargetM = ((2 * layout.boundary.radiusXM) / 5) || 1;
+  const scaleMagnitude = 10 ** Math.floor(Math.log10(scaleTargetM));
+  const scaleNormalized = scaleTargetM / scaleMagnitude;
+  const scaleNiceM = (scaleNormalized >= 5 ? 5 : scaleNormalized >= 2 ? 2 : 1) * scaleMagnitude;
+  const scaleLabel = scaleNiceM >= 1000 ? `${formatNumber(scaleNiceM / 1000, 1)} km` : `${formatNumber(scaleNiceM, 0)} m`;
 
   const wellById = new Map(layout.wells.map((w) => [w.id, w]));
   const validWell = wellById.get(selectedWell) ?? layout.wells[0]!;
+  const trueWell = shownTruth.find((s) => s.wellId === validWell.id)!;
+  const estWell = shownEst.find((s) => s.wellId === validWell.id)!;
+  const wellRate = estWell.rateKgS;
+  const obsTemp = shownObs.find((o) => o.wellId === validWell.id && o.channel === 'temperatureC');
+  const obsPress = shownObs.find((o) => o.wellId === validWell.id && o.channel === 'pressureBar');
 
-  // Selected-well series across cycles: true vs observed (gaps) vs estimated.
+  const qualityOf = (wellId: string): 'ok' | 'missing' | 'rejected' => {
+    const flags = shownObs
+      .filter((o) => o.wellId === wellId)
+      .map((o) => o.quality);
+    if (flags.includes('rejected')) return 'rejected';
+    if (flags.includes('missing')) return 'missing';
+    return 'ok';
+  };
+
+  const observationText = (o?: spatial.WellObservation): string => {
+    if (!o || o.observedValue === null) {
+      return `${o?.quality ?? 'missing'}${o?.reason ? ` · ${o.reason}` : ''}`;
+    }
+    return `${formatNumber(o.observedValue, 1)} ${o.unit} · ${o.quality}`;
+  };
+
   const wellSeries = (
     which: 'true' | 'obs' | 'est',
   ): { t: number; value: number | null }[] => {
-    const channel = layer;
+    const channel = display.variable;
     return result.cycles.map((c, i) => {
       if (which === 'obs') {
         const o = obsByCycle[i]!.find((p) => p.wellId === validWell.id && p.channel === channel);
@@ -204,65 +408,67 @@ export function FieldMapView({
     });
   };
 
+  const legendStops =
+    display.id === 'pressure-deviation'
+      ? 'rgb(42, 120, 214), rgb(242, 241, 237), rgb(235, 104, 52)'
+      : (display.variable === 'temperatureC' ? RAMP_T : RAMP_P)
+          .map(([r, g, b]) => `rgb(${r}, ${g}, ${b})`)
+          .join(', ');
+  const unit = display.unit;
   const flowing = layout.wells.filter((w) => w.status === 'flowing').length;
-  const unit = layer === 'temperatureC' ? '°C' : 'bar';
 
   return (
-    <div className="stack">
-      <div className="panel">
-        <h2>Field map — synthetic geothermal field</h2>
-        <p className="panel__intro">
-          The lumped tank disaggregated onto wells: producers draw down around
-          themselves, peripheral injectors mound pressure back and cool their
-          neighbours, the observation well reads bulk conditions. Colors show the{' '}
-          <strong>{source === 'estimated' ? 'estimated' : 'true'}</strong> state at the
-          slider time — estimated comes from the assimilation posterior, true from
-          the hidden trajectory. Reduced-order illustration, not flow simulation
-          (spatial version {spatial.SPATIAL_VERSION}).
-        </p>
+    <div className="control-room">
+      <div className="panel control-room__header">
+        <div>
+          <h2>Field map — synthetic geothermal field</h2>
+          <p className="panel__intro">
+            A reduced-order spatial view of the twin: the tank bulk state is spread
+            onto production, injection and observation wells with steady influence
+            cones. Select a well for its true, observed and estimated history.
+          </p>
+        </div>
         <p className="note">
-          Seed {seed} · layout v{layout.layoutVersion} · {layout.wells.length} wells
-          ({flowing} flowing) · default operating rates · {nCycles - 1} yearly snapshots.
+          Seed {seed} · {layout.wells.length} wells ({flowing} flowing) · default rates
         </p>
       </div>
 
       <div className="panel">
-        <h2>Map controls</h2>
+        <h2>Map and time controls</h2>
         <div className="controls">
           <div className="control">
-            <label htmlFor="fmap-time">Simulation time (years)</label>
-            <input
-              id="fmap-time"
-              type="range"
-              min={0}
-              max={nCycles - 1}
-              step={1}
-              value={ci}
-              onChange={(event) => setCycleIdx(Number(event.target.value))}
-              aria-valuetext={`${formatNumber(cycle.timeYears, 1)} years`}
-            />
-            <span className="tabular">{formatNumber(cycle.timeYears, 1)} yr</span>
-          </div>
-          <div className="control">
-            <label htmlFor="fmap-layer">Layer</label>
-            <select id="fmap-layer" className="cell-input" value={layer}
-              onChange={(event) => setLayer(event.target.value as typeof layer)}>
-              <option value="temperatureC">Temperature (°C)</option>
-              <option value="pressureBar">Pressure (bar)</option>
+            <label htmlFor="fmap-display">Spatial variable</label>
+            <select
+              id="fmap-display"
+              className="cell-input"
+              value={display.id}
+              onChange={(event) => setDisplayId(event.target.value as DisplayId)}
+            >
+              {DISPLAYS.map((d) => (
+                <option key={d.id} value={d.id}>{d.label}</option>
+              ))}
             </select>
           </div>
           <div className="control">
             <label htmlFor="fmap-source">Show</label>
-            <select id="fmap-source" className="cell-input" value={source}
-              onChange={(event) => setSource(event.target.value as typeof source)}>
+            <select
+              id="fmap-source"
+              className="cell-input"
+              value={source}
+              onChange={(event) => setSource(event.target.value as typeof source)}
+            >
               <option value="estimated">Estimated state</option>
-              <option value="true">True state</option>
+              <option value="true">Hidden true state</option>
             </select>
           </div>
           <div className="control">
             <label htmlFor="fmap-well">Selected well</label>
-            <select id="fmap-well" className="cell-input" value={validWell.id}
-              onChange={(event) => setSelectedWell(event.target.value)}>
+            <select
+              id="fmap-well"
+              className="cell-input"
+              value={validWell.id}
+              onChange={(event) => setSelectedWell(event.target.value)}
+            >
               {layout.wells.map((w) => (
                 <option key={w.id} value={w.id}>{w.id} · {w.kind}</option>
               ))}
@@ -270,125 +476,375 @@ export function FieldMapView({
           </div>
           <div className="control">
             <label htmlFor="fmap-n">Ensemble members</label>
-            <select id="fmap-n" className="cell-input" value={ensembleN}
-              onChange={(event) => setEnsembleN(Number(event.target.value))}>
+            <select
+              id="fmap-n"
+              className="cell-input"
+              value={ensembleN}
+              onChange={(event) => setEnsembleN(Number(event.target.value))}
+            >
               {ENSEMBLE_OPTIONS.map((v) => (
                 <option key={v} value={v}>{v}</option>
               ))}
             </select>
           </div>
+          <div className="control">
+            <span>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showQuality}
+                  onChange={(event) => setShowQuality(event.target.checked)}
+                />{' '}
+                Show observation-quality rings
+              </label>
+            </span>
+          </div>
           <span className="controls__status" role="status" aria-live="polite">{busy ? 'Recomputing…' : ''}</span>
         </div>
+        <div className="timeline">
+          <button
+            type="button"
+            className="button"
+            aria-pressed={isPlaying}
+            onClick={() => {
+              if (!isPlaying && ci >= nCycles - 1) setCycleIdx(0);
+              setIsPlaying((current) => !current);
+            }}
+          >
+            {isPlaying ? 'Pause' : 'Play'}
+          </button>
+          <label className="timeline__slider" htmlFor="fmap-time">
+            Simulation time
+            <input
+              id="fmap-time"
+              type="range"
+              min={0}
+              max={nCycles - 1}
+              step={1}
+              value={ci}
+              onChange={(event) => {
+                setIsPlaying(false);
+                setCycleIdx(Number(event.target.value));
+              }}
+              aria-valuetext={`${formatNumber(cycle.timeYears, 1)} years`}
+            />
+          </label>
+          <span className="timeline__readout tabular">
+            Year {formatNumber(cycle.timeYears, 1)} · snapshot {ci + 1} of {nCycles}
+          </span>
+        </div>
+        <p className="note">{display.explanation} Colour limits are fixed for the whole run.</p>
       </div>
 
       <main className={busy ? 'is-stale' : undefined}>
-        <div className="panel">
-          <h2>
-            Reservoir {layer === 'temperatureC' ? 'temperature' : 'pressure'} —{' '}
-            {source === 'estimated' ? 'estimated' : 'true'} state, year {formatNumber(cycle.timeYears, 1)}
-          </h2>
-          <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} className="chart-svg" role="img"
-            aria-label={`Field map of ${layer === 'temperatureC' ? 'temperature' : 'pressure'} at year ${formatNumber(cycle.timeYears, 1)}`}>
-            {grid.map((c, i) =>
-              c.inside ? (
-                <rect key={i} x={px(c.xM) - cellW / 2} y={py(c.yM) - cellH / 2}
-                  width={cellW + 0.5} height={cellH + 0.5}
-                  fill={rampColor(ramp, (cellVal(c) - lo) / span)} opacity={0.55} />
-              ) : null,
-            )}
-            <ellipse cx={MAP_W / 2} cy={MAP_H / 2}
-              rx={layout.boundary.radiusXM * scale} ry={layout.boundary.radiusYM * scale}
-              fill="none" stroke="var(--text-muted)" strokeWidth={1.5} strokeDasharray="6 4" />
-            {layout.wells.map((w) => {
-              const wc = shown.find((s) => s.wellId === w.id)!;
-              const v = layer === 'temperatureC' ? wc.temperatureC : wc.pressureBar;
-              const fill = rampColor(ramp, (v - lo) / span);
-              const cx = px(w.xM);
-              const cy = py(w.yM);
-              const selected = w.id === validWell.id;
-              const glyph =
-                w.kind === 'production' ? (
-                  <polygon points={`${cx},${cy - 9} ${cx - 8},${cy + 6} ${cx + 8},${cy + 6}`} />
-                ) : w.kind === 'injection' ? (
-                  <polygon points={`${cx},${cy + 9} ${cx - 8},${cy - 6} ${cx + 8},${cy - 6}`} />
-                ) : (
-                  <circle cx={cx} cy={cy} r={6} />
+        <div className="map-workspace">
+          <div className="panel map-stage">
+            <h2>
+              {display.label} — {source === 'estimated' ? 'estimated' : 'hidden true'} state
+            </h2>
+            <svg
+              viewBox={`0 0 ${MAP_W} ${MAP_H}`}
+              className="chart-svg"
+              role="img"
+              aria-label={`${display.label}, ${source} state, year ${formatNumber(cycle.timeYears, 1)}`}
+            >
+              <defs>
+                <clipPath id="field-boundary-clip">
+                  <ellipse
+                    cx={MAP_W / 2}
+                    cy={MAP_H / 2}
+                    rx={layout.boundary.radiusXM * scale}
+                    ry={layout.boundary.radiusYM * scale}
+                  />
+                </clipPath>
+              </defs>
+              <g clipPath="url(#field-boundary-clip)">
+                {grid.map((c, i) =>
+                  c.inside ? (
+                    <rect
+                      key={i}
+                      x={px(c.xM) - cellW / 2}
+                      y={py(c.yM) - cellH / 2}
+                      width={cellW + 0.6}
+                      height={cellH + 0.6}
+                      fill={colorForDisplay(cellDisplayValue(c))}
+                    />
+                  ) : null,
+                )}
+              </g>
+              <ellipse
+                cx={MAP_W / 2}
+                cy={MAP_H / 2}
+                rx={layout.boundary.radiusXM * scale}
+                ry={layout.boundary.radiusYM * scale}
+                fill="none"
+                stroke="var(--surface)"
+                strokeWidth={5}
+              />
+              <ellipse
+                cx={MAP_W / 2}
+                cy={MAP_H / 2}
+                rx={layout.boundary.radiusXM * scale}
+                ry={layout.boundary.radiusYM * scale}
+                fill="none"
+                stroke="var(--text-primary)"
+                strokeWidth={2}
+              />
+              {layout.wells.map((w) => {
+                const wc = (source === 'estimated' ? shownEst : shownTruth).find((s) => s.wellId === w.id)!;
+                const raw = display.variable === 'temperatureC' ? wc.temperatureC : wc.pressureBar;
+                const shownValue =
+                  display.mode === 'absolute'
+                    ? raw
+                    : display.variable === 'temperatureC'
+                      ? bulk.temperatureC - raw
+                      : raw - bulk.pressureBar;
+                const fill = colorForDisplay(shownValue);
+                const cx = px(w.xM);
+                const cy = py(w.yM);
+                const selected = w.id === validWell.id;
+                const quality = qualityOf(w.id);
+                const glyph =
+                  w.kind === 'production' ? (
+                    <polygon points={`${cx},${cy - 9} ${cx - 8},${cy + 6} ${cx + 8},${cy + 6}`} />
+                  ) : w.kind === 'injection' ? (
+                    <polygon points={`${cx},${cy + 9} ${cx - 8},${cy - 6} ${cx + 8},${cy - 6}`} />
+                  ) : (
+                    <circle cx={cx} cy={cy} r={6} />
+                  );
+                return (
+                  <g
+                    key={w.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${w.name}, ${w.kind}, ${w.status}. ${display.label}: ${formatNumber(shownValue, 1)} ${unit}. Observation quality ${quality}. Activate to select.`}
+                    onClick={() => setSelectedWell(w.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedWell(w.id);
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <title>{`${w.name}: ${formatNumber(shownValue, 1)} ${unit}, ${w.status}, quality ${quality}`}</title>
+                    {showQuality && quality !== 'ok' ? (
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={11}
+                        fill="none"
+                        stroke={quality === 'rejected' ? 'var(--critical)' : 'var(--series-4)'}
+                        strokeWidth={2}
+                        strokeDasharray={quality === 'rejected' ? undefined : '4 3'}
+                      />
+                    ) : null}
+                    {selected ? (
+                      <circle cx={cx} cy={cy} r={14} fill="none" stroke="var(--text-primary)" strokeWidth={2} />
+                    ) : null}
+                    <g fill={fill} stroke="var(--surface)" strokeWidth={2}>{glyph}</g>
+                    <text
+                      x={cx}
+                      y={cy + 24}
+                      textAnchor="middle"
+                      fill="var(--text-primary)"
+                      fontSize={11}
+                      fontWeight={selected ? 700 : 400}
+                    >
+                      {w.id}
+                    </text>
+                  </g>
                 );
-              return (
-                <g key={w.id} onClick={() => setSelectedWell(w.id)} style={{ cursor: 'pointer' }}>
-                  <title>{`${w.name}: ${formatNumber(v, 1)} ${unit}, ${w.status}`}</title>
-                  {selected ? (
-                    <circle cx={cx} cy={cy} r={13} fill="none" stroke="var(--text)" strokeWidth={2} />
-                  ) : null}
-                  <g fill={fill} stroke="var(--text)" strokeWidth={1.5}>{glyph}</g>
-                  <text x={cx} y={cy + 22} textAnchor="middle" fill="var(--text)" fontSize={11}
-                    fontWeight={selected ? 700 : 400}>{w.id}</text>
-                </g>
-              );
-            })}
-          </svg>
-          <p className="chart-frame__caption">
-            ▲ producers · ▼ injectors · ● observation. Color runs {formatNumber(lo, 1)}–
-            {formatNumber(hi, 1)} {unit} over the full run (fixed scale, no flicker).
-            Dashed ellipse: reservoir boundary from area {formatNumber(layout.areaKm2, 1)} km².
-          </p>
+              })}
+              <g aria-hidden="true">
+                <line
+                  x1={MAP_PAD}
+                  x2={MAP_PAD + scaleNiceM * scale}
+                  y1={MAP_H - 12}
+                  y2={MAP_H - 12}
+                  stroke="var(--text-primary)"
+                  strokeWidth={2}
+                />
+                <line x1={MAP_PAD} x2={MAP_PAD} y1={MAP_H - 16} y2={MAP_H - 8} stroke="var(--text-primary)" strokeWidth={2} />
+                <line
+                  x1={MAP_PAD + scaleNiceM * scale}
+                  x2={MAP_PAD + scaleNiceM * scale}
+                  y1={MAP_H - 16}
+                  y2={MAP_H - 8}
+                  stroke="var(--text-primary)"
+                  strokeWidth={2}
+                />
+                <text x={MAP_PAD} y={MAP_H - 20} fill="var(--text-primary)" fontSize={11} className="tabular">
+                  {scaleLabel}
+                </text>
+                <text x={MAP_W - MAP_PAD} y={MAP_PAD - 12} textAnchor="end" fill="var(--text-primary)" fontSize={11}>
+                  N ↑
+                </text>
+              </g>
+            </svg>
+            <div className="map-legend" aria-label={`${display.label} colour scale`}>
+              <div className="map-legend__ramp" style={{ background: `linear-gradient(90deg, ${legendStops})` }} aria-hidden="true" />
+              <div className="map-legend__ticks tabular">
+                <span>{formatNumber(domain.lo, 1)} {unit}</span>
+                <span>{formatNumber((domain.lo + domain.hi) / 2, 1)} {unit}</span>
+                <span>{formatNumber(domain.hi, 1)} {unit}</span>
+              </div>
+            </div>
+            <ul className="well-key" aria-label="Well symbols and observation quality">
+              <li><span className="well-key__glyph well-key__glyph--production" aria-hidden="true">▲</span>Production</li>
+              <li><span className="well-key__glyph well-key__glyph--injection" aria-hidden="true">▼</span>Injection</li>
+              <li><span className="well-key__glyph well-key__glyph--observation" aria-hidden="true">●</span>Observation</li>
+              <li><span className="quality-badge quality-badge--missing" aria-hidden="true">○</span>Missing reading</li>
+              <li><span className="quality-badge quality-badge--rejected" aria-hidden="true">○</span>Rejected reading</li>
+            </ul>
+            <p className="chart-frame__caption">
+              Fixed reservoir-grid scale: no colour flicker while time moves. Solid
+              ellipse is the reservoir boundary for {formatNumber(layout.areaKm2, 1)} km².
+              Injector markers outside the plotted reservoir range are clamped to the
+              nearest endpoint.
+            </p>
+          </div>
+
+          <div className="panel well-inspector">
+            <h2>Selected well — {validWell.id}</h2>
+            <p className="note">{validWell.name} · {validWell.kind} · {validWell.status} · depth {formatNumber(validWell.depthM, 0)} m</p>
+            <div className="table-scroll">
+              <table className="data-table">
+                <caption className="visually-hidden">True, observed and estimated conditions at the selected time</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Signal</th>
+                    <th scope="col" className="numeric">Hidden true</th>
+                    <th scope="col" className="numeric">Observed</th>
+                    <th scope="col" className="numeric">Estimated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Temperature (°C)</th>
+                    <td className="numeric tabular">{formatNumber(trueWell.temperatureC, 1)}</td>
+                    <td className="numeric tabular">{observationText(obsTemp)}</td>
+                    <td className="numeric tabular">{formatNumber(estWell.temperatureC, 1)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Pressure (bar)</th>
+                    <td className="numeric tabular">{formatNumber(trueWell.pressureBar, 1)}</td>
+                    <td className="numeric tabular">{observationText(obsPress)}</td>
+                    <td className="numeric tabular">{formatNumber(estWell.pressureBar, 1)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Rate (kg/s)</th>
+                    <td className="numeric tabular">{formatNumber(wellRate, 1)}</td>
+                    <td className="numeric tabular">control, not metered</td>
+                    <td className="numeric tabular">{formatNumber(wellRate, 1)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              <span className={`quality-badge quality-badge--${obsTemp?.quality ?? 'missing'}`}>T {obsTemp?.quality ?? 'missing'}</span>{' '}
+              <span className={`quality-badge quality-badge--${obsPress?.quality ?? 'missing'}`}>p {obsPress?.quality ?? 'missing'}</span>
+              {trueWell.pressureLimited ? (
+                <> <span className="quality-badge quality-badge--rejected">deep-drawdown clamp</span></>
+              ) : null}
+            </p>
+            <TimeSeriesChart
+              title={`${validWell.id} · ${display.variable === 'temperatureC' ? 'Temperature' : 'Pressure'} history`}
+              yLabel={display.variable === 'temperatureC' ? 'Temperature (°C)' : 'Pressure (bar)'}
+              currentTime={cycle.timeYears}
+              lines={[
+                { label: 'Hidden true state', role: 'truth', points: wellSeries('true') },
+                { label: 'Observed', role: 'observation', points: wellSeries('obs') },
+                { label: 'Estimated state', role: 'estimate', points: wellSeries('est') },
+              ]}
+              digits={1}
+              caption="Local disaggregated histories at absolute values. Gaps are missing surveillance readings, never interpolated."
+            />
+            <p className="note">
+              Wellhead surveillance is illustrative. The twin assimilates bulk
+              plant temperature and pressure, not these per-well readings.
+            </p>
+          </div>
         </div>
 
-        <div className="grid-2">
-          <TimeSeriesChart
-            title={`${validWell.id} · ${layer === 'temperatureC' ? 'Temperature' : 'Pressure'}: true vs observed vs estimated`}
-            yLabel={layer === 'temperatureC' ? 'Temperature (°C)' : 'Pressure (bar)'}
-            lines={[
-              { label: 'True state', points: wellSeries('true') },
-              { label: 'Observed', points: wellSeries('obs') },
-              { label: 'Estimated state', points: wellSeries('est') },
-            ]}
-            digits={1}
-            caption="Wellhead surveillance against the disaggregated truth and the assimilation posterior. Gaps are missing readings — never interpolated."
-          />
-          <div className="panel">
-            <h2>Well table — year {formatNumber(cycle.timeYears, 1)} ({source})</h2>
+        <div className="panel">
+          <h2>Well table — year {formatNumber(cycle.timeYears, 1)} ({source})</h2>
+          <div className="table-scroll">
             <table className="data-table">
-              <caption className="visually-hidden">Well conditions at the slider time</caption>
+              <caption className="visually-hidden">True and estimated well conditions at the slider time</caption>
               <thead>
                 <tr>
                   <th scope="col">Well</th>
                   <th scope="col">Kind</th>
-                  <th scope="col" className="numeric">Rate</th>
-                  <th scope="col" className="numeric">Est. T</th>
-                  <th scope="col" className="numeric">Est. p</th>
-                  <th scope="col">Latest obs</th>
+                  <th scope="col" className="numeric">Rate (kg/s)</th>
+                  <th scope="col" className="numeric">True → estimated T (°C)</th>
+                  <th scope="col" className="numeric">True → estimated p (bar)</th>
+                  <th scope="col">T surveillance</th>
+                  <th scope="col">p surveillance</th>
                 </tr>
               </thead>
               <tbody>
                 {layout.wells.map((w) => {
-                  const est = shownEst.find((s) => s.wellId === w.id)!;
+                  const trueWc = shownTruth.find((s) => s.wellId === w.id)!;
+                  const estWc = shownEst.find((s) => s.wellId === w.id)!;
                   const obsT = shownObs.find((o) => o.wellId === w.id && o.channel === 'temperatureC');
                   const obsP = shownObs.find((o) => o.wellId === w.id && o.channel === 'pressureBar');
-                  const obsText = (o: typeof obsT): string =>
-                    !o || o.quality !== 'ok' ? (o?.quality ?? '—') : formatNumber(o.observedValue ?? NaN, 1);
                   return (
-                    <tr key={w.id} onClick={() => setSelectedWell(w.id)}
-                      style={{ cursor: 'pointer', fontWeight: w.id === validWell.id ? 700 : 400 }}>
-                      <th scope="row">{w.id}</th>
+                    <tr key={w.id} className={w.id === validWell.id ? 'is-selected' : undefined}>
+                      <th scope="row">
+                        <button
+                          type="button"
+                          className="well-select"
+                          aria-pressed={w.id === validWell.id}
+                          onClick={() => setSelectedWell(w.id)}
+                        >
+                          {w.id}
+                        </button>
+                      </th>
                       <td>{w.kind}</td>
-                      <td className="numeric tabular">{formatNumber(est.rateKgS, 1)} kg/s</td>
-                      <td className="numeric tabular">{formatNumber(est.temperatureC, 1)} °C</td>
-                      <td className="numeric tabular">{formatNumber(est.pressureBar, 1)}</td>
-                      <td className="tabular">{obsText(obsT)} °C · {obsText(obsP)}</td>
+                      <td className="numeric tabular">{formatNumber(estWc.rateKgS, 1)}</td>
+                      <td className="numeric tabular">
+                        {formatNumber(trueWc.temperatureC, 1)} → {formatNumber(estWc.temperatureC, 1)}
+                      </td>
+                      <td className="numeric tabular">
+                        {formatNumber(trueWc.pressureBar, 1)} → {formatNumber(estWc.pressureBar, 1)}
+                      </td>
+                      <td>
+                        <span className={`quality-badge quality-badge--${obsT?.quality ?? 'missing'}`}>
+                          {observationText(obsT)}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`quality-badge quality-badge--${obsP?.quality ?? 'missing'}`}>
+                          {observationText(obsP)}
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-            <p className="note">
-              Estimated columns come from the posterior bulk state; “Latest obs” shows
-              this step's surveillance (quality flag when not ok). Bulk truth T/p: {' '}
-              {formatNumber(cycle.truthT, 1)} °C / {formatNumber(cycle.truthP, 1)} bar ·
-              posterior: {formatNumber(cycle.postMeanT, 1)} °C / {formatNumber(cycle.postMeanP, 1)} bar.
-            </p>
           </div>
+          <p className="note">
+            Bulk {source} state: {formatNumber(bulk.temperatureC, 1)} °C /{' '}
+            {formatNumber(bulk.pressureBar, 1)} bar. Estimated wells come from the
+            posterior bulk state; true wells come from the hidden trajectory.
+          </p>
         </div>
+
+        <details className="method-details">
+          <summary>How to read this reduced-order map</summary>
+          <p>
+            The map does not simulate groundwater flow. It adds steady production
+            drawdown, injection support and bounded injector cooling to the tank
+            bulk state. Absolute views retain bulk history; deviation views make
+            the small simulated spatial signal readable on a fixed scale.
+          </p>
+          <p className="note">
+            Spatial version {spatial.SPATIAL_VERSION} · layout version {layout.layoutVersion} ·{' '}
+            {nCycles - 1} yearly snapshots · seed {seed}.
+          </p>
+        </details>
       </main>
     </div>
   );
