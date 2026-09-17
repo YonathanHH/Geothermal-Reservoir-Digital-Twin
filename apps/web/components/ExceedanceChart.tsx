@@ -132,7 +132,7 @@ export function ExceedanceChart({
           const labelX = x(atProbability(s.points, anchorProbability));
           return (
             <g key={s.label}>
-              <path d={d} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
+              <path d={d} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" />
               {/* Direct label: identity never rests on colour alone. */}
               {series.length > 1 ? (
                 <text

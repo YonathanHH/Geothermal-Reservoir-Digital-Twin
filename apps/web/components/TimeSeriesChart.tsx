@@ -6,13 +6,13 @@ import { formatNumber } from '../lib/format';
 const WIDTH = 620;
 const HEIGHT = 300;
 const LINE_COLORS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)'];
-const BAND_FILL = 'var(--series-1)';
+const BAND_FILL = 'var(--role-band)';
 const ROLE_STYLES: Record<TimeSeriesRole, { color: string; dash?: string; marker: boolean }> = {
-  truth: { color: 'var(--series-1)', marker: false },
-  observation: { color: 'var(--series-4)', dash: '2 4', marker: true },
-  estimate: { color: 'var(--series-3)', marker: false },
-  forecast: { color: 'var(--series-2)', dash: '7 4', marker: false },
-  reference: { color: 'var(--text-muted)', dash: '4 4', marker: false },
+  truth: { color: 'var(--role-truth)', marker: false },
+  observation: { color: 'var(--role-observation)', dash: '2 4', marker: true },
+  estimate: { color: 'var(--role-estimate)', marker: false },
+  forecast: { color: 'var(--role-forecast)', dash: '7 4', marker: false },
+  reference: { color: 'var(--role-reference)', dash: '4 4', marker: false },
 };
 
 function styleFor(
@@ -164,16 +164,31 @@ export function TimeSeriesChart({
           />
         ) : null}
         {band ? (
-          <path
-            d={
-              `${band.points.map((p, j) => `${j === 0 ? 'M' : 'L'}${x(p.t)},${y(p.p10)}`).join(' ')} ` +
-              `${[...band.points].reverse().map((p) => `L${x(p.t)},${y(p.p90)}`).join(' ')} Z`
-            }
-            fill={BAND_FILL}
-            opacity={0.18}
-          >
+          <g aria-hidden="true">
+            {(() => {
+              const pts = band.points;
+              const dx =
+                pts.length > 1
+                  ? Math.abs(x(pts[1]!.t) - x(pts[0]!.t))
+                  : WIDTH;
+              // One stick per step, slightly overlapped: immune to polygon
+              // winding artefacts when a percentile oscillates step to step.
+              const w = Math.min(24, Math.max(1.5, dx * 1.15));
+              return pts.map((p, j) => (
+                <line
+                  key={j}
+                  x1={x(p.t)}
+                  x2={x(p.t)}
+                  y1={y(p.p10)}
+                  y2={y(p.p90)}
+                  stroke={BAND_FILL}
+                  strokeWidth={w}
+                  opacity={0.22}
+                />
+              ));
+            })()}
             <title>{`${band.label}: P10–P90 ensemble range across trajectories (P90 conservative to P10 optimistic)`}</title>
-          </path>
+          </g>
         ) : null}
         {band ? (
           <path
@@ -195,10 +210,10 @@ export function TimeSeriesChart({
                 d={line(l.points)}
                 fill="none"
                 stroke={style.color}
-                strokeWidth={style.role === 'reference' ? 1.5 : 2}
+                strokeWidth={style.role === 'reference' ? 2 : 2.5}
                 strokeDasharray={style.dash}
                 strokeLinejoin="round"
-                opacity={style.role === 'reference' ? 0.85 : 1}
+                opacity={style.role === 'reference' ? 0.9 : 1}
               >
                 <title>{`${l.label}: ${formatNumber(l.points.at(-1)?.value ?? NaN, digits)} at year ${formatNumber(tMax, 0)}`}</title>
               </path>
@@ -209,10 +224,10 @@ export function TimeSeriesChart({
                         key={`${l.label}-${j}`}
                         cx={x(p.t)}
                         cy={y(p.value)}
-                        r={2.4}
+                        r={3}
                         fill="var(--surface)"
                         stroke={style.color}
-                        strokeWidth={1.5}
+                        strokeWidth={2}
                         aria-hidden="true"
                       />
                     ),

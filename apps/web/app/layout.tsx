@@ -15,11 +15,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/*
           Apply the stored theme before first paint so the page never flashes the wrong
           palette. Inline because it must run ahead of hydration; it touches only the
-          root element's data-theme attribute.
+          root element's data-theme attribute. With no stored choice the CSS follows
+          the OS preference, so only an explicit stored value is stamped here.
         */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem('geo-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}`,
+            __html: `try{var t=localStorage.getItem('geo-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}`,
           }}
         />
       </head>

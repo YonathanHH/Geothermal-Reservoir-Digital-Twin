@@ -50,7 +50,7 @@ const SAMPLE_COUNTS = [500, 1000, 2000, 5000, 10000];
 /** Simulation settings: everything that changes the run but not the physics. */
 export function RunControls({ n, seed, lifetimeYears, busy, onChange, onReset }: RunControlsProps) {
   return (
-    <div className="controls">
+    <div className="controls" role="group" aria-label="Run configuration">
       <div className="control">
         <label htmlFor="control-n">Realizations</label>
         <select

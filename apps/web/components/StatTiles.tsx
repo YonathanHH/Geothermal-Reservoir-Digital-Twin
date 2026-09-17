@@ -11,16 +11,16 @@ export function PercentileTiles({ statistics }: { statistics: SummaryStatistics 
   const at = (p: number) => statistics.exceedance.find((e) => e.probability === p)?.value ?? NaN;
 
   const tiles = [
-    { label: 'P90', value: at(0.9), note: 'Conservative — 90% chance of at least this' },
-    { label: 'P50', value: at(0.5), note: 'Median expectation' },
-    { label: 'P10', value: at(0.1), note: 'Optimistic — 10% chance of at least this' },
-    { label: 'Mean', value: statistics.mean, note: `Std. deviation ${formatNumber(statistics.stdev, 2)} MWe` },
+    { label: 'P90', value: at(0.9), note: 'Conservative — 90% chance of at least this', accent: undefined },
+    { label: 'P50', value: at(0.5), note: 'Median expectation', accent: 'estimate' },
+    { label: 'P10', value: at(0.1), note: 'Optimistic — 10% chance of at least this', accent: 'ember' },
+    { label: 'Mean', value: statistics.mean, note: `Std. deviation ${formatNumber(statistics.stdev, 2)} MWe`, accent: undefined },
   ];
 
   return (
     <dl className="tiles">
       {tiles.map((tile) => (
-        <div className="tile" key={tile.label}>
+        <div className={`tile${tile.accent ? ' tile--hero' : ''}`} data-accent={tile.accent} key={tile.label}>
           <dt>{tile.label}</dt>
           <dd>
             <span className="tile__value tabular">{formatNumber(tile.value, 2)}</span>

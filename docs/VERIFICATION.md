@@ -1,7 +1,7 @@
 # Verification
 
 Run with `pnpm verify` (source: `packages/bench/verify.ts`); `pnpm test` runs the same
-claims as assertions plus the edge cases. Figures below are from model version 0.2.0.
+claims as assertions plus the edge cases. Figures below are from model version 1.0.0.
 
 The word here is **verification**, not validation: these checks establish that the model
 computes what it says it computes. Whether the volumetric method is a good model of a

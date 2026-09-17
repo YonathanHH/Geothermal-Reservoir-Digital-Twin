@@ -17,7 +17,7 @@ import { PARAMETER_KEYS } from './types.js';
  * Model version, recorded on every run. Bump whenever a change alters numerical output,
  * so archived results stay interpretable.
  */
-export const MODEL_VERSION = '0.2.0';
+export const MODEL_VERSION = '1.0.0';
 
 /** Name of the demonstration case, shown in the dashboard header. */
 export const FIELD_NAME = 'Demo Field A (synthetic)';

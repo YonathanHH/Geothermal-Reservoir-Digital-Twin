@@ -233,12 +233,12 @@ export function OperationsView({
       ) : (
         <main className={busy ? 'is-stale' : undefined}>
           <dl className="tiles">
-            <div className="tile">
+            <div className="tile tile--hero" data-accent="estimate">
               <dt>Estimated T / p now</dt>
-              <dd><span className="tile__value tabular">{formatNumber(model.estimated.temperatureC, 1)} / {formatNumber(model.estimated.pressureBar, 1)}</span><span className="tile__unit">°C / bar</span></dd>
+              <dd><span className="tile__value tile__value--sm tabular">{formatNumber(model.estimated.temperatureC, 1)} / {formatNumber(model.estimated.pressureBar, 1)}</span><span className="tile__unit">°C / bar</span></dd>
               <p className="tile__note">Posterior mean at twin end</p>
             </div>
-            <div className="tile">
+            <div className="tile tile--hero" data-accent="estimate">
               <dt>Estimated generation now</dt>
               <dd><span className="tile__value tabular">{formatNumber(model.estimated.capacityMweInstant, 2)}</span><span className="tile__unit">MWe</span></dd>
               <p className="tile__note">At current operating rates</p>

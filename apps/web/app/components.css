@@ -1,14 +1,244 @@
-/* Layout and component styles. Every value comes from the spacing/colour scale. */
+/* HELIX component system — dark geothermal operations console.
+   Every value comes from the spacing/colour scale in globals.css. */
+
+/* --- app shell ----------------------------------------------------------- */
 
 .app {
-  max-width: 1180px;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 15.5rem minmax(0, 1fr);
+  align-items: start;
+}
+
+/* Side rail: product identity + grouped navigation + run status. */
+.rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-4);
+  background: var(--surface-sunken);
+  border-right: 1px solid var(--border);
+}
+
+.rail__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.rail__mark {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  flex: none;
+  background:
+    radial-gradient(circle at 35% 30%, #ffc46b 0%, #ff6b2c 42%, #7a1e05 100%);
+  box-shadow: 0 0 0 1px var(--border-strong), 0 0 18px rgba(255, 107, 44, 0.35);
+}
+
+.rail__name {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.rail__field {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rail__field::before {
+  content: '';
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--role-estimate);
+  box-shadow: 0 0 8px var(--role-estimate);
+}
+
+.rail__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.rail__group-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0 var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.rail__link {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: left;
+  color: var(--text-secondary);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.rail__link:hover {
+  color: var(--text-primary);
+  background: var(--surface-raised);
+}
+
+.rail__link.is-active {
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border-color: var(--border);
+  box-shadow: inset 2px 0 0 var(--ember);
+}
+
+.rail__link .rail__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-muted);
+}
+
+.rail__link:hover .rail__icon {
+  color: var(--text-secondary);
+}
+
+.rail__link.is-active .rail__icon {
+  color: var(--ember);
+}
+
+.rail__status {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.rail__status dt {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.rail__status dd {
+  margin: 0;
+}
+
+.rail__meta {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+/* Main column. */
+.main {
+  min-width: 0;
+  max-width: 88rem;
   margin: 0 auto;
-  padding: var(--space-6) var(--space-4) var(--space-7);
+  width: 100%;
+  padding: var(--space-5) var(--space-5) var(--space-7);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
 }
 
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ember);
+  margin-bottom: var(--space-1);
+}
+
+.topbar h1 {
+  font-size: 1.5rem;
+}
+
+.topbar__lede {
+  margin-top: var(--space-1);
+  max-width: 76ch;
+  color: var(--text-secondary);
+}
+
+.topbar__side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.run-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.run-pill.is-busy {
+  color: var(--role-observation);
+  border-color: var(--role-observation);
+}
+
+.run-pill.is-busy::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--role-observation);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Legacy header (kept for compatibility) */
 .app__header {
   display: flex;
   align-items: flex-start;
@@ -56,7 +286,7 @@
 
 /* Content that is being recomputed stays readable but signals staleness. */
 main.is-stale {
-  opacity: 0.62;
+  opacity: 0.6;
   transition: opacity 120ms ease-out;
 }
 
@@ -66,9 +296,9 @@ main.is-stale {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: var(--space-4);
+  gap: var(--space-3) var(--space-4);
   padding: var(--space-4);
-  background: var(--surface);
+  background: var(--surface-sunken);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
@@ -85,10 +315,29 @@ main.is-stale {
   flex: 1 1 17rem;
 }
 
-.control label {
-  font-size: 0.75rem;
-  font-weight: 600;
+.control > label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Inline checkbox labels keep sentence case. */
+.control label:has(input[type='checkbox']) {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.control label:has(input[type='checkbox']) input {
+  accent-color: var(--ember);
 }
 
 .control__help {
@@ -107,7 +356,7 @@ main.is-stale {
   font: inherit;
   font-size: 0.8125rem;
   color: var(--text-primary);
-  background: var(--surface);
+  background: var(--surface-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   padding: var(--space-1) var(--space-2);
@@ -115,33 +364,63 @@ main.is-stale {
   min-width: 4.5rem;
 }
 
+.cell-input:focus {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 0;
+}
+
 .cell-input:disabled {
   color: var(--text-muted);
   background: var(--surface-sunken);
   cursor: not-allowed;
+  opacity: 0.7;
+}
+
+select.cell-input {
+  appearance: auto;
+}
+
+select.cell-input option {
+  background: var(--surface-overlay);
+  color: var(--text-primary);
 }
 
 .button {
   font: inherit;
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
-  background: var(--surface);
+  background: var(--surface-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .button:hover {
-  background: var(--surface-sunken);
+  border-color: var(--accent);
+  background: var(--surface-overlay);
 }
 
 .button--ghost {
+  background: transparent;
   border-color: var(--border);
 }
 
-/* --- tabs ---------------------------------------------------------------- */
+.button--primary {
+  background: var(--ember);
+  border-color: var(--ember);
+  color: #fff;
+}
+
+.button--primary:hover {
+  background: var(--ember);
+  filter: brightness(1.12);
+}
+
+/* --- tabs (kept for compatibility; rail is the primary nav) --------------- */
 
 .tabs {
   display: flex;
@@ -169,7 +448,7 @@ main.is-stale {
 
 .tab.is-active {
   color: var(--text-primary);
-  border-bottom-color: var(--accent);
+  border-bottom-color: var(--ember);
 }
 
 /* --- panels & tiles ------------------------------------------------------ */
@@ -178,10 +457,21 @@ main.is-stale {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: var(--space-4);
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  box-shadow: var(--shadow-panel);
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .panel__intro {
@@ -197,16 +487,17 @@ main.is-stale {
 }
 
 .tile {
-  background: var(--surface);
+  background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
+  position: relative;
 }
 
 .tile dt {
   font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -220,8 +511,13 @@ main.is-stale {
 
 .tile__value {
   font-size: 1.75rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.02em;
+}
+
+/* Compound “a / b” readouts that would otherwise wrap mid-value. */
+.tile__value--sm {
+  font-size: 1.3rem;
 }
 
 .tile__unit {
@@ -233,6 +529,37 @@ main.is-stale {
   margin-top: var(--space-1);
   font-size: 0.6875rem;
   color: var(--text-muted);
+}
+
+/* Hero metric cards: left accent edge + larger numerals. */
+.tile--hero {
+  border-left: 3px solid var(--accent);
+}
+
+.tile--hero[data-accent='ember'] {
+  border-left-color: var(--ember);
+}
+
+.tile--hero[data-accent='estimate'] {
+  border-left-color: var(--role-estimate);
+}
+
+.tile--hero[data-accent='observation'] {
+  border-left-color: var(--role-observation);
+}
+
+.tile__delta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile__delta--good {
+  color: var(--good);
+}
+
+.tile__delta--bad {
+  color: var(--critical);
 }
 
 /* --- tables -------------------------------------------------------------- */
@@ -257,8 +584,8 @@ main.is-stale {
 
 .data-table thead th {
   font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
   border-bottom-color: var(--border-strong);
@@ -290,16 +617,21 @@ main.is-stale {
   border-bottom: none;
 }
 
+.data-table tbody tr:hover th,
+.data-table tbody tr:hover td {
+  background: rgba(148, 178, 205, 0.04);
+}
+
 .data-table tr.is-result th,
 .data-table tr.is-result td {
-  background: var(--surface-sunken);
-  font-weight: 600;
+  background: var(--ember-soft);
+  font-weight: 650;
 }
 
 .symbol {
   font-family: var(--font-mono);
   font-size: 0.9em;
-  color: var(--text-secondary);
+  color: var(--ember);
 }
 
 .cell-ref {
@@ -313,13 +645,12 @@ main.is-stale {
   padding: 0 var(--space-1);
 }
 
-/* Tables wider than the viewport scroll inside their own panel. */
-.panel {
-  overflow-x: auto;
-}
-
 .data-table--inputs .cell-input {
   max-width: 7rem;
+}
+
+.data-table--ladder tr.is-result th:first-child {
+  box-shadow: inset 3px 0 0 var(--ember);
 }
 
 /* --- charts -------------------------------------------------------------- */
@@ -333,6 +664,8 @@ main.is-stale {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  box-shadow: var(--shadow-panel);
+  min-width: 0;
 }
 
 .chart-frame__head {
@@ -356,10 +689,14 @@ main.is-stale {
   overflow: visible;
 }
 
+.chart-svg text {
+  font-family: var(--font-sans);
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -370,14 +707,15 @@ main.is-stale {
 .legend li {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
 }
 
 .legend__swatch {
-  width: 10px;
-  height: 10px;
+  width: 1.25rem;
+  height: 3px;
   border-radius: 2px;
   display: inline-block;
+  flex: none;
 }
 
 /* --- tornado ------------------------------------------------------------- */
@@ -401,21 +739,23 @@ main.is-stale {
 
 .tornado__track {
   background: var(--surface-sunken);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  height: 14px;
+  height: 1rem;
   overflow: hidden;
 }
 
 .tornado__bar {
   display: block;
   height: 100%;
-  background: var(--series-1);
+  background: linear-gradient(90deg, var(--accent), var(--ember));
   border-radius: 0 4px 4px 0;
 }
 
 .tornado__value {
   text-align: right;
-  font-weight: 600;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 .tornado__slope {
@@ -446,7 +786,7 @@ main.is-stale {
 }
 
 .scenario-picker legend {
-  font-weight: 600;
+  font-weight: 650;
   padding: 0 var(--space-1);
 }
 
@@ -470,11 +810,17 @@ main.is-stale {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  background: var(--surface-raised);
+}
+
+.scenario-option input {
+  accent-color: var(--ember);
+  margin-top: 0.2rem;
 }
 
 .scenario-option.is-selected {
-  border-color: var(--accent);
-  background: var(--surface-sunken);
+  border-color: var(--ember);
+  background: var(--ember-soft);
 }
 
 .scenario-option:has(input:disabled) {
@@ -503,7 +849,7 @@ main.is-stale {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  max-width: 72ch;
+  max-width: 76ch;
 }
 
 .note {
@@ -539,7 +885,7 @@ main.is-stale {
 }
 
 .status-card {
-  background: var(--surface);
+  background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
@@ -550,16 +896,17 @@ main.is-stale {
 
 .status-card h3 {
   font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
 
 .status-card__value {
   font-size: 1.45rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .status-card__value span {
@@ -571,6 +918,18 @@ main.is-stale {
 .status-card__meta {
   font-size: 0.6875rem;
   color: var(--text-muted);
+}
+
+.status-card--hero {
+  border-left: 3px solid var(--role-estimate);
+}
+
+.status-card--warn {
+  border-left: 3px solid var(--role-observation);
+}
+
+.status-card--forecast {
+  border-left: 3px solid var(--role-forecast);
 }
 
 .method-details {
@@ -593,6 +952,10 @@ main.is-stale {
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
 }
 
 .timeline__slider {
@@ -600,22 +963,38 @@ main.is-stale {
   min-width: 12rem;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-secondary);
+  gap: var(--space-2);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .timeline__slider input {
   width: 100%;
-  accent-color: var(--accent);
+  accent-color: var(--ember);
+  height: 1.75rem;
+  cursor: pointer;
 }
 
 .timeline__readout {
   font-size: 0.8125rem;
-  color: var(--text-secondary);
+  font-weight: 650;
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: var(--space-1) var(--space-3);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
+
+.timeline__play {
+  min-width: 5.5rem;
+}
+
+/* --- field map ----------------------------------------------------------- */
 
 .map-workspace {
   display: grid;
@@ -630,10 +1009,23 @@ main.is-stale {
   }
 }
 
+.map-stage {
+  background:
+    radial-gradient(600px 300px at 50% 0%, rgba(94, 169, 255, 0.05), transparent 70%),
+    var(--surface);
+}
+
+.map-canvas {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
 .map-stage svg text {
   paint-order: stroke;
-  stroke: var(--surface);
-  stroke-width: 3px;
+  stroke: var(--surface-sunken);
+  stroke-width: 4px;
 }
 
 .map-legend {
@@ -643,7 +1035,7 @@ main.is-stale {
 }
 
 .map-legend__ramp {
-  height: 0.75rem;
+  height: 0.875rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
 }
@@ -653,7 +1045,9 @@ main.is-stale {
   justify-content: space-between;
   gap: var(--space-2);
   font-size: 0.75rem;
+  font-weight: 600;
   color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .well-key {
@@ -662,27 +1056,47 @@ main.is-stale {
   gap: var(--space-2) var(--space-4);
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: var(--space-3);
   font-size: 0.75rem;
   color: var(--text-secondary);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 .well-key li {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
+}
+
+.well-key__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 2px solid;
 }
 
 .well-key__glyph--production {
-  color: var(--series-2);
+  color: var(--role-forecast);
+  border-color: var(--role-forecast);
+  background: var(--ember-soft);
 }
 
 .well-key__glyph--injection {
-  color: var(--series-1);
+  color: var(--role-truth);
+  border-color: var(--role-truth);
+  background: var(--accent-soft);
 }
 
 .well-key__glyph--observation {
-  color: var(--text-secondary);
+  color: var(--role-estimate);
+  border-color: var(--role-estimate);
 }
 
 .quality-badge {
@@ -691,23 +1105,27 @@ main.is-stale {
   border-radius: 999px;
   padding: 0 var(--space-2);
   font-size: 0.6875rem;
-  line-height: 1.6;
+  font-weight: 600;
+  line-height: 1.7;
   white-space: nowrap;
 }
 
 .quality-badge--ok {
   color: var(--good);
   border-color: var(--good);
+  background: rgba(61, 213, 152, 0.08);
 }
 
 .quality-badge--missing {
-  color: var(--series-4);
-  border-color: var(--series-4);
+  color: var(--warn);
+  border-color: var(--warn);
+  background: rgba(242, 184, 36, 0.08);
 }
 
 .quality-badge--rejected {
   color: var(--critical);
   border-color: var(--critical);
+  background: rgba(255, 93, 93, 0.08);
 }
 
 .table-scroll {
@@ -717,7 +1135,7 @@ main.is-stale {
 
 .data-table tr.is-selected th,
 .data-table tr.is-selected td {
-  background: var(--surface-sunken);
+  background: var(--accent-soft);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
@@ -726,11 +1144,132 @@ main.is-stale {
   border: none;
   padding: 0;
   font: inherit;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--accent);
   cursor: pointer;
 }
 
 .well-select:hover {
   text-decoration: underline;
+}
+
+.well-inspector {
+  position: sticky;
+  top: var(--space-4);
+}
+
+/* --- role chips: state vs observation vs estimate vs forecast ------------- */
+
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.1rem var(--space-2);
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.role-chip::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.role-chip--truth {
+  color: var(--role-truth);
+  border-color: var(--role-truth);
+}
+
+.role-chip--estimate {
+  color: var(--role-estimate);
+  border-color: var(--role-estimate);
+}
+
+.role-chip--observation {
+  color: var(--role-observation);
+  border-color: var(--role-observation);
+}
+
+.role-chip--forecast {
+  color: var(--role-forecast);
+  border-color: var(--role-forecast);
+}
+
+.role-chip--reference {
+  color: var(--role-reference);
+  border-color: var(--role-reference);
+}
+
+/* --- responsive shell ----------------------------------------------------- */
+
+@media (max-width: 1080px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  .rail {
+    position: static;
+    height: auto;
+    flex-direction: column;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: var(--space-4);
+  }
+
+  .rail__nav {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .rail__group-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .rail__link {
+    width: auto;
+  }
+
+  .rail__status {
+    margin-top: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    align-items: baseline;
+  }
+
+  .well-inspector {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: var(--space-4) var(--space-3) var(--space-6);
+  }
+
+  .panel {
+    padding: var(--space-4);
+  }
+
+  .status-strip {
+    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  }
+
+  .tile__value {
+    font-size: 1.4rem;
+  }
+
+  .topbar h1 {
+    font-size: 1.25rem;
+  }
 }

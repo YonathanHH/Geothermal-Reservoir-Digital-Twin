@@ -268,24 +268,17 @@ export function TwinView({
       ) : (
         <main className={busy ? 'is-stale' : undefined}>
           <section aria-label="Current field status" className="status-strip">
-            <div className="status-card">
-              <h3>Estimated pressure now</h3>
+            <div className="status-card status-card--hero">
+              <h3>Reservoir state now · estimated</h3>
               <p className="status-card__value tabular">
+                {formatNumber(estimatedFinal.temperatureC, 1)} <span>°C</span>
+                {' · '}
                 {formatNumber(estimatedFinal.pressureBar, 1)} <span>bar</span>
               </p>
               <p className="status-card__meta">
-                Hidden truth {formatNumber(truthFinal.pressureBar, 1)} bar · estimation
-                improvement {formatNumber(reductionP, 1)}%
-              </p>
-            </div>
-            <div className="status-card">
-              <h3>Estimated temperature now</h3>
-              <p className="status-card__value tabular">
-                {formatNumber(estimatedFinal.temperatureC, 1)} <span>°C</span>
-              </p>
-              <p className="status-card__meta">
-                Hidden truth {formatNumber(truthFinal.temperatureC, 1)} °C ·
-                improvement {formatNumber(reductionT, 1)}%
+                Truth {formatNumber(truthFinal.temperatureC, 1)} °C /{' '}
+                {formatNumber(truthFinal.pressureBar, 1)} bar · error reduced{' '}
+                {formatNumber(reductionT, 1)}% (T) / {formatNumber(reductionP, 1)}% (p)
               </p>
             </div>
             <div className="status-card">
@@ -298,20 +291,13 @@ export function TwinView({
               </p>
             </div>
             <div className="status-card">
-              <h3>Production now</h3>
+              <h3>Operating setpoint now</h3>
               <p className="status-card__value tabular">
-                {formatNumber(deferred.productionKgS, 1)} <span>kg/s</span>
+                {formatNumber(deferred.productionKgS, 1)} <span>/ {formatNumber(deferred.injectionKgS, 1)} kg/s</span>
               </p>
-              <p className="status-card__meta">Operating setpoint, not a measurement</p>
+              <p className="status-card__meta">Production / injection — setpoints, not measurements</p>
             </div>
-            <div className="status-card">
-              <h3>Injection now</h3>
-              <p className="status-card__value tabular">
-                {formatNumber(deferred.injectionKgS, 1)} <span>kg/s</span>
-              </p>
-              <p className="status-card__meta">Operating setpoint, not a measurement</p>
-            </div>
-            <div className="status-card">
+            <div className="status-card status-card--warn">
               <h3>Estimate uncertainty</h3>
               <p className="status-card__value tabular">
                 ±{formatNumber(last.postSpreadT, 2)} <span>°C</span>
@@ -334,11 +320,14 @@ export function TwinView({
           </section>
 
           <div className="panel">
-            <h2>Updated forecast from the latest estimate</h2>
+            <div className="panel__head">
+              <h2>Updated forecast from the latest estimate</h2>
+              <span className="role-chip role-chip--forecast">Forecast · +{FORECAST_YEARS} yr</span>
+            </div>
             {model.forecast && forecastEnd ? (
               <>
                 <dl className="tiles">
-                  <div className="tile">
+                  <div className="tile tile--hero" data-accent="ember">
                     <dt>Forecast generation, +{FORECAST_YEARS} years</dt>
                     <dd>
                       <span className="tile__value tabular">
@@ -350,7 +339,7 @@ export function TwinView({
                       Current rates held · {model.forecast.rejected} depleted members excluded
                     </p>
                   </div>
-                  <div className="tile">
+                  <div className="tile tile--hero" data-accent="ember">
                     <dt>Forecast pressure, +{FORECAST_YEARS} years</dt>
                     <dd>
                       <span className="tile__value tabular">

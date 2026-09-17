@@ -93,7 +93,9 @@ export function HistogramChart({ histogram, total }: { histogram: Histogram; tot
                 height={Math.max(0, height)}
                 rx={height > 4 ? 4 : 0}
                 fill="var(--series-1)"
-                opacity={hovered === null || isHovered ? 1 : 0.45}
+                stroke="var(--surface-sunken)"
+                strokeWidth={1}
+                opacity={hovered === null || isHovered ? 0.95 : 0.45}
                 onMouseEnter={() => setHovered(i)}
                 onMouseLeave={() => setHovered(null)}
               >

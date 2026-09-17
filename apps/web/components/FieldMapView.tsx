@@ -19,12 +19,13 @@ const MAP_W = 720;
 const MAP_H = 500;
 const MAP_PAD = 34;
 
-// Fixed sequential reservoir ramps (light → dark). Stops as [r, g, b].
-const RAMP_T: [number, number, number][] = [[255, 247, 224], [253, 184, 99], [215, 48, 31]];
-const RAMP_P: [number, number, number][] = [[235, 246, 255], [107, 174, 214], [8, 81, 156]];
-const DIVERGE_NEG: [number, number, number] = [42, 120, 214];
-const DIVERGE_MID: [number, number, number] = [242, 241, 237];
-const DIVERGE_POS: [number, number, number] = [235, 104, 52];
+// Sequential reservoir ramps tuned for a dark basemap: cool/dark low end so the
+// hot, pressurised field interior glows. Stops as [r, g, b].
+const RAMP_T: [number, number, number][] = [[64, 30, 18], [214, 110, 44], [255, 214, 150]];
+const RAMP_P: [number, number, number][] = [[10, 28, 54], [44, 120, 190], [186, 224, 248]];
+const DIVERGE_NEG: [number, number, number] = [56, 140, 240];
+const DIVERGE_MID: [number, number, number] = [22, 28, 34];
+const DIVERGE_POS: [number, number, number] = [255, 122, 58];
 
 type DisplayId = 'temperature' | 'pressure' | 'pressure-deviation' | 'cooling';
 
@@ -410,10 +411,13 @@ export function FieldMapView({
 
   const legendStops =
     display.id === 'pressure-deviation'
-      ? 'rgb(42, 120, 214), rgb(242, 241, 237), rgb(235, 104, 52)'
+      ? 'rgb(56, 140, 240), rgb(22, 28, 34), rgb(255, 122, 58)'
       : (display.variable === 'temperatureC' ? RAMP_T : RAMP_P)
           .map(([r, g, b]) => `rgb(${r}, ${g}, ${b})`)
           .join(', ');
+  const legendMid = (domain.lo + domain.hi) / 2;
+  const legendQ1 = domain.lo + domainSpan * 0.25;
+  const legendQ3 = domain.lo + domainSpan * 0.75;
   const unit = display.unit;
   const flowing = layout.wells.filter((w) => w.status === 'flowing').length;
 
@@ -504,7 +508,7 @@ export function FieldMapView({
         <div className="timeline">
           <button
             type="button"
-            className="button"
+            className="button timeline__play"
             aria-pressed={isPlaying}
             onClick={() => {
               if (!isPlaying && ci >= nCycles - 1) setCycleIdx(0);
@@ -539,9 +543,15 @@ export function FieldMapView({
       <main className={busy ? 'is-stale' : undefined}>
         <div className="map-workspace">
           <div className="panel map-stage">
-            <h2>
-              {display.label} — {source === 'estimated' ? 'estimated' : 'hidden true'} state
-            </h2>
+            <div className="panel__head">
+              <h2>
+                {display.label} — {source === 'estimated' ? 'estimated' : 'hidden true'} state
+              </h2>
+              <span className={`role-chip ${source === 'estimated' ? 'role-chip--estimate' : 'role-chip--truth'}`}>
+                {source === 'estimated' ? 'Estimate' : 'Hidden truth'}
+              </span>
+            </div>
+            <div className="map-canvas">
             <svg
               viewBox={`0 0 ${MAP_W} ${MAP_H}`}
               className="chart-svg"
@@ -578,7 +588,7 @@ export function FieldMapView({
                 rx={layout.boundary.radiusXM * scale}
                 ry={layout.boundary.radiusYM * scale}
                 fill="none"
-                stroke="var(--surface)"
+                stroke="var(--surface-sunken)"
                 strokeWidth={5}
               />
               <ellipse
@@ -590,6 +600,33 @@ export function FieldMapView({
                 stroke="var(--text-primary)"
                 strokeWidth={2}
               />
+              {/* Graticule: faint inner range rings + crosshair for spatial reference. */}
+              <g fill="none" stroke="var(--border-strong)" strokeWidth={1} strokeDasharray="5 5" opacity={0.8} aria-hidden="true">
+                <ellipse
+                  cx={MAP_W / 2}
+                  cy={MAP_H / 2}
+                  rx={(layout.boundary.radiusXM * scale * 2) / 3}
+                  ry={(layout.boundary.radiusYM * scale * 2) / 3}
+                />
+                <ellipse
+                  cx={MAP_W / 2}
+                  cy={MAP_H / 2}
+                  rx={(layout.boundary.radiusXM * scale) / 3}
+                  ry={(layout.boundary.radiusYM * scale) / 3}
+                />
+                <line
+                  x1={MAP_W / 2 - layout.boundary.radiusXM * scale}
+                  x2={MAP_W / 2 + layout.boundary.radiusXM * scale}
+                  y1={MAP_H / 2}
+                  y2={MAP_H / 2}
+                />
+                <line
+                  x1={MAP_W / 2}
+                  x2={MAP_W / 2}
+                  y1={MAP_H / 2 - layout.boundary.radiusYM * scale}
+                  y2={MAP_H / 2 + layout.boundary.radiusYM * scale}
+                />
+              </g>
               {layout.wells.map((w) => {
                 const wc = (source === 'estimated' ? shownEst : shownTruth).find((s) => s.wellId === w.id)!;
                 const raw = display.variable === 'temperatureC' ? wc.temperatureC : wc.pressureBar;
@@ -606,11 +643,11 @@ export function FieldMapView({
                 const quality = qualityOf(w.id);
                 const glyph =
                   w.kind === 'production' ? (
-                    <polygon points={`${cx},${cy - 9} ${cx - 8},${cy + 6} ${cx + 8},${cy + 6}`} />
+                    <polygon points={`${cx},${cy - 11} ${cx - 10},${cy + 7.5} ${cx + 10},${cy + 7.5}`} />
                   ) : w.kind === 'injection' ? (
-                    <polygon points={`${cx},${cy + 9} ${cx - 8},${cy - 6} ${cx + 8},${cy - 6}`} />
+                    <polygon points={`${cx},${cy + 11} ${cx - 10},${cy - 7.5} ${cx + 10},${cy - 7.5}`} />
                   ) : (
-                    <circle cx={cx} cy={cy} r={6} />
+                    <circle cx={cx} cy={cy} r={7.5} />
                   );
                 return (
                   <g
@@ -632,23 +669,26 @@ export function FieldMapView({
                       <circle
                         cx={cx}
                         cy={cy}
-                        r={11}
+                        r={14}
                         fill="none"
                         stroke={quality === 'rejected' ? 'var(--critical)' : 'var(--series-4)'}
-                        strokeWidth={2}
+                        strokeWidth={2.5}
                         strokeDasharray={quality === 'rejected' ? undefined : '4 3'}
                       />
                     ) : null}
                     {selected ? (
-                      <circle cx={cx} cy={cy} r={14} fill="none" stroke="var(--text-primary)" strokeWidth={2} />
+                      <>
+                        <circle cx={cx} cy={cy} r={18} fill="none" stroke="var(--ember)" strokeWidth={1.5} opacity={0.55} />
+                        <circle cx={cx} cy={cy} r={14.5} fill="none" stroke="var(--ember)" strokeWidth={2.5} />
+                      </>
                     ) : null}
-                    <g fill={fill} stroke="var(--surface)" strokeWidth={2}>{glyph}</g>
+                    <g fill={fill} stroke="var(--surface-sunken)" strokeWidth={2.5}>{glyph}</g>
                     <text
                       x={cx}
-                      y={cy + 24}
+                      y={cy + 28}
                       textAnchor="middle"
                       fill="var(--text-primary)"
-                      fontSize={11}
+                      fontSize={12}
                       fontWeight={selected ? 700 : 400}
                     >
                       {w.id}
@@ -682,11 +722,14 @@ export function FieldMapView({
                 </text>
               </g>
             </svg>
+            </div>
             <div className="map-legend" aria-label={`${display.label} colour scale`}>
               <div className="map-legend__ramp" style={{ background: `linear-gradient(90deg, ${legendStops})` }} aria-hidden="true" />
               <div className="map-legend__ticks tabular">
                 <span>{formatNumber(domain.lo, 1)} {unit}</span>
-                <span>{formatNumber((domain.lo + domain.hi) / 2, 1)} {unit}</span>
+                <span>{formatNumber(legendQ1, 1)} {unit}</span>
+                <span>{formatNumber(legendMid, 1)} {unit}</span>
+                <span>{formatNumber(legendQ3, 1)} {unit}</span>
                 <span>{formatNumber(domain.hi, 1)} {unit}</span>
               </div>
             </div>
@@ -694,8 +737,8 @@ export function FieldMapView({
               <li><span className="well-key__glyph well-key__glyph--production" aria-hidden="true">▲</span>Production</li>
               <li><span className="well-key__glyph well-key__glyph--injection" aria-hidden="true">▼</span>Injection</li>
               <li><span className="well-key__glyph well-key__glyph--observation" aria-hidden="true">●</span>Observation</li>
-              <li><span className="quality-badge quality-badge--missing" aria-hidden="true">○</span>Missing reading</li>
-              <li><span className="quality-badge quality-badge--rejected" aria-hidden="true">○</span>Rejected reading</li>
+              <li><span className="quality-badge quality-badge--missing">missing</span>&nbsp;Missing reading</li>
+              <li><span className="quality-badge quality-badge--rejected">rejected</span>&nbsp;Rejected reading</li>
             </ul>
             <p className="chart-frame__caption">
               Fixed reservoir-grid scale: no colour flicker while time moves. Solid
@@ -706,7 +749,12 @@ export function FieldMapView({
           </div>
 
           <div className="panel well-inspector">
-            <h2>Selected well — {validWell.id}</h2>
+            <div className="panel__head">
+              <h2>Selected well — {validWell.id}</h2>
+              <span className={`role-chip ${validWell.kind === 'production' ? 'role-chip--forecast' : validWell.kind === 'injection' ? 'role-chip--truth' : 'role-chip--estimate'}`}>
+                {validWell.kind}
+              </span>
+            </div>
             <p className="note">{validWell.name} · {validWell.kind} · {validWell.status} · depth {formatNumber(validWell.depthM, 0)} m</p>
             <div className="table-scroll">
               <table className="data-table">
@@ -768,7 +816,10 @@ export function FieldMapView({
         </div>
 
         <div className="panel">
-          <h2>Well table — year {formatNumber(cycle.timeYears, 1)} ({source})</h2>
+          <div className="panel__head">
+            <h2>Well table — year {formatNumber(cycle.timeYears, 1)} ({source})</h2>
+            <span className="role-chip role-chip--observation">Surveillance</span>
+          </div>
           <div className="table-scroll">
             <table className="data-table">
               <caption className="visually-hidden">True and estimated well conditions at the slider time</caption>

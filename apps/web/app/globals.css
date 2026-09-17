@@ -1,41 +1,63 @@
 /*
- * Design tokens.
+ * HELIX design tokens — dark geothermal operations console.
  *
- * Colour roles are defined once on :root and redefined for dark mode under both the
- * OS media query and an explicit [data-theme] stamp, so the in-page toggle wins in
- * either direction. Chart code references roles (--series-1, --grid) and never raw hex.
+ * The app is dark-first: :root carries the dark technical palette and
+ * [data-theme='light'] opts back into the legacy light scheme. Chart code
+ * references roles (--series-*, --grid, --role-*) and never raw hex.
  *
- * Categorical series slots are the validated default palette; the ordering is the
- * colour-vision-deficiency safety mechanism, so slots are assigned in order and never
- * cycled. Light-mode slots 3 and 4 sit below 3:1 against the surface, so every chart
- * that uses them also carries direct labels and a table view.
+ * Data-role semantics (fixed across themes, never repurposed):
+ *   truth       — hidden physical state ............ sky blue
+ *   estimate    — assimilated / posterior mean ..... mint green
+ *   observation — measured telemetry ............... amber, always with markers
+ *   forecast    — projected futures ................ ember orange, dashed
+ *   reference   — controls / baselines ............. neutral grey, dashed
+ *   band        — ensemble P10–P90 range ........... translucent sky
+ *
+ * Categorical series slots keep the validated ordering; slots are assigned in
+ * order and never cycled. Every multi-series chart also carries direct labels
+ * and a table view, so identity never rests on colour alone.
  */
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  --page: #f9f9f7;
-  --surface: #fcfcfb;
-  --surface-sunken: #f2f1ed;
+  --page: #0a0d10;
+  --page-glow: radial-gradient(1200px 500px at 70% -10%, rgba(64, 120, 180, 0.08), transparent 60%);
+  --surface: #11161b;
+  --surface-raised: #161c22;
+  --surface-sunken: #0c1014;
+  --surface-overlay: #1a2129;
 
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
+  --text-primary: #eef3f6;
+  --text-secondary: #a9b6c1;
+  --text-muted: #6d7b88;
 
-  --border: rgba(11, 11, 11, 0.1);
-  --border-strong: #c3c2b7;
-  --grid: #e1e0d9;
-  --axis: #c3c2b7;
+  --border: rgba(148, 178, 205, 0.13);
+  --border-strong: #2b3540;
+  --grid: #1c232b;
+  --axis: #39434e;
 
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-  --series-3: #1baf7a;
-  --series-4: #eda100;
+  /* data roles */
+  --role-truth: #5ea9ff;
+  --role-estimate: #3dd598;
+  --role-observation: #f2b824;
+  --role-forecast: #ff6b2c;
+  --role-reference: #7d8a97;
+  --role-band: #5ea9ff;
 
-  --accent: #2a78d6;
-  --accent-soft: #cde2fb;
-  --good: #0ca30c;
-  --critical: #d03b3b;
+  /* categorical slots (validated order) */
+  --series-1: #5ea9ff;
+  --series-2: #ff6b2c;
+  --series-3: #3dd598;
+  --series-4: #f2b824;
+
+  --accent: #5ea9ff;
+  --accent-soft: rgba(94, 169, 255, 0.14);
+  --ember: #ff6b2c;
+  --ember-soft: rgba(255, 107, 44, 0.13);
+  --good: #3dd598;
+  --warn: #f2b824;
+  --critical: #ff5d5d;
 
   /* Spacing scale: 4px increments. Nothing off this scale. */
   --space-1: 0.25rem;
@@ -46,67 +68,101 @@
   --space-6: 2rem;
   --space-7: 3rem;
 
-  --radius-sm: 3px;
-  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 
-  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'JetBrains Mono', Menlo, monospace;
+
+  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    color-scheme: dark;
+:root[data-theme='light'] {
+  color-scheme: light;
 
-    --page: #0d0d0d;
-    --surface: #1a1a19;
-    --surface-sunken: #131312;
+  --page: #f4f4f2;
+  --page-glow: none;
+  --surface: #fcfcfa;
+  --surface-raised: #ffffff;
+  --surface-sunken: #efeeea;
+  --surface-overlay: #ffffff;
 
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
+  --text-primary: #0d1114;
+  --text-secondary: #4f5a63;
+  --text-muted: #828c96;
 
-    --border: rgba(255, 255, 255, 0.1);
-    --border-strong: #383835;
-    --grid: #2c2c2a;
-    --axis: #383835;
+  --border: rgba(13, 17, 20, 0.11);
+  --border-strong: #c6cdd3;
+  --grid: #e4e7ea;
+  --axis: #b9c1c9;
 
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --series-3: #199e70;
-    --series-4: #c98500;
+  --role-truth: #2a78d6;
+  --role-estimate: #199e70;
+  --role-observation: #b97f00;
+  --role-forecast: #d95926;
+  --role-reference: #6d7b88;
+  --role-band: #2a78d6;
 
-    --accent: #3987e5;
-    --accent-soft: #184f95;
-    --good: #0ca30c;
-    --critical: #d03b3b;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #b97f00;
+
+  --accent: #1f6fd0;
+  --accent-soft: #d8e8fb;
+  --ember: #d95926;
+  --ember-soft: #f9e2d5;
+  --good: #0c8a3e;
+  --warn: #8a6300;
+  --critical: #c22f2f;
+
+  --shadow-panel: 0 1px 2px rgba(13, 17, 20, 0.05);
+}
+
+/* No stored choice: follow the OS. Explicit [data-theme] always wins. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']):not([data-theme='light']) {
+    color-scheme: light;
+
+    --page: #f4f4f2;
+    --page-glow: none;
+    --surface: #fcfcfa;
+    --surface-raised: #ffffff;
+    --surface-sunken: #efeeea;
+    --surface-overlay: #ffffff;
+
+    --text-primary: #0d1114;
+    --text-secondary: #4f5a63;
+    --text-muted: #828c96;
+
+    --border: rgba(13, 17, 20, 0.11);
+    --border-strong: #c6cdd3;
+    --grid: #e4e7ea;
+    --axis: #b9c1c9;
+
+    --role-truth: #2a78d6;
+    --role-estimate: #199e70;
+    --role-observation: #b97f00;
+    --role-forecast: #d95926;
+    --role-reference: #6d7b88;
+    --role-band: #2a78d6;
+
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #b97f00;
+
+    --accent: #1f6fd0;
+    --accent-soft: #d8e8fb;
+    --ember: #d95926;
+    --ember-soft: #f9e2d5;
+    --good: #0c8a3e;
+    --warn: #8a6300;
+    --critical: #c22f2f;
+
+    --shadow-panel: 0 1px 2px rgba(13, 17, 20, 0.05);
   }
-}
-
-:root[data-theme='dark'] {
-  color-scheme: dark;
-
-  --page: #0d0d0d;
-  --surface: #1a1a19;
-  --surface-sunken: #131312;
-
-  --text-primary: #ffffff;
-  --text-secondary: #c3c2b7;
-  --text-muted: #898781;
-
-  --border: rgba(255, 255, 255, 0.1);
-  --border-strong: #383835;
-  --grid: #2c2c2a;
-  --axis: #383835;
-
-  --series-1: #3987e5;
-  --series-2: #d95926;
-  --series-3: #199e70;
-  --series-4: #c98500;
-
-  --accent: #3987e5;
-  --accent-soft: #184f95;
-  --good: #0ca30c;
-  --critical: #d03b3b;
 }
 
 * {
@@ -121,23 +177,26 @@ body {
 
 body {
   background: var(--page);
+  background-image: var(--page-glow);
+  background-attachment: fixed;
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: 0.875rem;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 h1,
 h2,
 h3 {
   margin: 0;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 650;
+  letter-spacing: -0.015em;
 }
 
 h1 {
-  font-size: 1.25rem;
+  font-size: 1.375rem;
 }
 
 h2 {
@@ -156,6 +215,10 @@ p {
 
 a {
   color: var(--accent);
+}
+
+::selection {
+  background: var(--accent-soft);
 }
 
 :focus-visible {

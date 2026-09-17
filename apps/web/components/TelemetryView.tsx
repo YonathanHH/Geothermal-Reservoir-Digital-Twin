@@ -189,9 +189,9 @@ export function TelemetryView({
               <dd><span className="tile__value tabular">{formatNumber(last.timeYears, 1)}</span><span className="tile__unit">yr</span></dd>
               <p className="tile__note">RESERVOIR STATE · hidden truth</p>
             </div>
-            <div className="tile">
+            <div className="tile tile--hero" data-accent="estimate">
               <dt>Reservoir T / p</dt>
-              <dd><span className="tile__value tabular">{formatNumber(last.temperatureC, 1)} / {formatNumber(last.pressureBar, 1)}</span><span className="tile__unit">°C / bar</span></dd>
+              <dd><span className="tile__value tile__value--sm tabular">{formatNumber(last.temperatureC, 1)} / {formatNumber(last.pressureBar, 1)}</span><span className="tile__unit">°C / bar</span></dd>
               <p className="tile__note">RESERVOIR STATE · hidden truth</p>
             </div>
             <div className="tile">
